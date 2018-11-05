@@ -26,7 +26,7 @@
 #include "LoopClosing.h"
 #include "Tracking.h"
 #include "KeyFrameDatabase.h"
-#include "AnplGtsamRecover.h"
+#include "GtsamTransformer.h"
 
 #include <mutex>
 
@@ -37,12 +37,12 @@ namespace ORB_SLAM2
 class Tracking;
 class LoopClosing;
 class Map;
-class AnplGtsamRecover;
+class GtsamTransformer;
 
 class LocalMapping
 {
  public:
-  LocalMapping(Map* pMap, const float bMonocular, AnplGtsamRecover *gtsam_recover = nullptr);
+  LocalMapping(Map* pMap, const float bMonocular, GtsamTransformer *gtsam_transformer = nullptr);
 
   void SetLoopCloser(LoopClosing* pLoopCloser);
 
@@ -124,7 +124,7 @@ class LocalMapping
   bool mbAcceptKeyFrames;
   std::mutex mMutexAccept;
 
-  AnplGtsamRecover *gtsam_recover_;
+  GtsamTransformer *gtsam_transformer_;
 };
 
 } //namespace ORB_SLAM

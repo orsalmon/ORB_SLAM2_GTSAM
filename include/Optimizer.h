@@ -26,23 +26,23 @@
 #include "KeyFrame.h"
 #include "LoopClosing.h"
 #include "Frame.h"
-#include "AnplGtsamRecover.h"
+#include "GtsamTransformer.h"
 
 #include "Thirdparty/g2o/g2o/types/types_seven_dof_expmap.h"
 
 namespace ORB_SLAM2 {
 
 class LoopClosing;
-class AnplGtsamRecover;
+class GtsamTransformer;
 
 class Optimizer {
  public:
   void static BundleAdjustment(const std::vector<KeyFrame *> &vpKF, const std::vector<MapPoint *> &vpMP,
                                int nIterations = 5, bool *pbStopFlag = NULL, const unsigned long nLoopKF = 0,
-                               const bool bRobust = true, AnplGtsamRecover *gtsam_recover = nullptr);
+                               const bool bRobust = true, GtsamTransformer *gtsam_transformer = nullptr);
   void static GlobalBundleAdjustemnt(Map *pMap, int nIterations = 5, bool *pbStopFlag = NULL,
-                                     const unsigned long nLoopKF = 0, const bool bRobust = true, AnplGtsamRecover *gtsam_recover = nullptr);
-  void static LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap, AnplGtsamRecover *gtsam_recover = nullptr);
+                                     const unsigned long nLoopKF = 0, const bool bRobust = true, GtsamTransformer *gtsam_transformer = nullptr);
+  void static LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap, GtsamTransformer *gtsam_transformer = nullptr);
   int static PoseOptimization(Frame *pFrame);
 
   // if bFixScale is true, 6DoF optimization (stereo,rgbd), 7DoF otherwise (mono)

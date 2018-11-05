@@ -36,7 +36,7 @@
 #include "ORBVocabulary.h"
 #include "Viewer.h"
 
-#include "AnplGtsamRecover.h"
+#include "GtsamTransformer.h"
 
 namespace ORB_SLAM2
 {
@@ -124,7 +124,7 @@ class System
   std::vector<MapPoint*> GetTrackedMapPoints();
   std::vector<cv::KeyPoint> GetTrackedKeyPointsUn();
 
-  AnplGtsamRecover gtsam_recover_;
+  GtsamTransformer gtsam_transformer_;
 
  private:
 

@@ -72,7 +72,7 @@ add_library(${PROJECT_NAME} SHARED
         src/Sim3Solver.cc
         src/Initializer.cc
         src/Viewer.cc
-        src/AnplGtsamRecover.cpp
+        src/GtsamTransformer.cpp
         )
 
 target_link_libraries(${PROJECT_NAME}

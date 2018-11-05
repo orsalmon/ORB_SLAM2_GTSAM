@@ -41,10 +41,10 @@ void Optimizer::GlobalBundleAdjustemnt(Map *pMap,
                                        bool *pbStopFlag,
                                        const unsigned long nLoopKF,
                                        const bool bRobust,
-                                       AnplGtsamRecover *gtsam_recover) {
+                                       GtsamTransformer *gtsam_transformer) {
   vector<KeyFrame *> vpKFs = pMap->GetAllKeyFrames();
   vector<MapPoint *> vpMP = pMap->GetAllMapPoints();
-  BundleAdjustment(vpKFs, vpMP, nIterations, pbStopFlag, nLoopKF, bRobust, gtsam_recover);
+  BundleAdjustment(vpKFs, vpMP, nIterations, pbStopFlag, nLoopKF, bRobust, gtsam_transformer);
 }
 
 void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
@@ -53,7 +53,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
                                  bool *pbStopFlag,
                                  const unsigned long nLoopKF,
                                  const bool bRobust,
-                                 AnplGtsamRecover *gtsam_recover) {
+                                 GtsamTransformer *gtsam_transformer) {
   vector<bool> vbNotIncludedMP;
   vbNotIncludedMP.resize(vpMP.size());
 
@@ -72,13 +72,13 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
 
   long unsigned int maxKFid = 0;
 
-  gtsam_recover->start(true);
+  gtsam_transformer->start(true);
 
   // Set KeyFrame vertices
   for (size_t i = 0; i < vpKFs.size(); i++) {
     KeyFrame *pKF = vpKFs[i];
 
-    gtsam_recover->handleKeyframe(pKF, pKF->isBad());
+    gtsam_transformer->handleKeyframe(pKF, pKF->isBad());
 
     if (pKF->isBad())
       continue;
@@ -90,7 +90,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
     if (pKF->mnId > maxKFid)
       maxKFid = pKF->mnId;
 
-    gtsam_recover->addKeyFrame(pKF, pKF->mnId == 0);
+    gtsam_transformer->addKeyFrame(pKF);
   }
 
   const float thHuber2D = sqrt(5.99);
@@ -100,7 +100,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
   for (size_t i = 0; i < vpMP.size(); i++) {
     MapPoint *pMP = vpMP[i];
 
-    gtsam_recover->handleLandmark(pMP, pMP->isBad());
+    gtsam_transformer->handleLandmark(pMP, pMP->isBad());
 
     if (pMP->isBad())
       continue;
@@ -111,7 +111,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
     vPoint->setMarginalized(true);
     optimizer.addVertex(vPoint);
 
-    gtsam_recover->addLandmark(pMP);
+    gtsam_transformer->addLandmark(pMP);
 
     const map<KeyFrame *, size_t> observations = pMP->GetObservations();
 
@@ -152,7 +152,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
 
         optimizer.addEdge(e);
 
-        gtsam_recover->addMonoMeasurement(pKF, pMP, obs, invSigma2);
+        gtsam_transformer->addMonoMeasurement(pKF, pMP, obs, invSigma2);
       } else {
         Eigen::Matrix<double, 3, 1> obs;
         const float kp_ur = pKF->mvuRight[mit->second];
@@ -180,7 +180,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
         e->bf = pKF->mbf;
 
         optimizer.addEdge(e);
-        gtsam_recover->addStereoMeasurement(pKF, pMP, obs, invSigma2);
+        gtsam_transformer->addStereoMeasurement(pKF, pMP, obs, invSigma2);
       }
     }
 
@@ -212,7 +212,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
       Converter::toCvMat(SE3quat).copyTo(pKF->mTcwGBA);
       pKF->mnBAGlobalForKF = nLoopKF;
     }
-    gtsam_recover->setKeyFramePose(pKF, SE3quat);
+    gtsam_transformer->setKeyFramePose(pKF, SE3quat);
   }
 
   //Points
@@ -234,10 +234,10 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
       Converter::toCvMat(vPoint->estimate()).copyTo(pMP->mPosGBA);
       pMP->mnBAGlobalForKF = nLoopKF;
     }
-    gtsam_recover->setLandmarkPose(pMP, vPoint->estimate());
+    gtsam_transformer->setLandmarkPose(pMP, vPoint->estimate());
   }
 
-  gtsam_recover->finish();
+  gtsam_transformer->finish();
 }
 
 int Optimizer::PoseOptimization(Frame *pFrame) {
@@ -436,20 +436,20 @@ int Optimizer::PoseOptimization(Frame *pFrame) {
   return nInitialCorrespondences - nBad;
 }
 
-void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap, AnplGtsamRecover *gtsam_recover) {
+void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap, GtsamTransformer *gtsam_transformer) {
   // Local KeyFrames: First Breath Search from Current Keyframe
-  list<KeyFrame *> lLocalKeyFrames;
+  list < KeyFrame * > lLocalKeyFrames;
 
   lLocalKeyFrames.push_back(pKF);
   pKF->mnBALocalForKF = pKF->mnId;
 
-  gtsam_recover->start(false);
+  gtsam_transformer->start(false);
 
   const vector<KeyFrame *> vNeighKFs = pKF->GetVectorCovisibleKeyFrames();
   for (int i = 0, iend = vNeighKFs.size(); i < iend; i++) {
     KeyFrame *pKFi = vNeighKFs[i];
 
-    gtsam_recover->handleKeyframe(pKFi, pKFi->isBad());
+    gtsam_transformer->handleKeyframe(pKFi, pKFi->isBad());
 
     pKFi->mnBALocalForKF = pKF->mnId;
     if (!pKFi->isBad())
@@ -457,15 +457,15 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
   }
 
   // Local MapPoints seen in Local KeyFrames
-  list<MapPoint *> lLocalMapPoints;
+  list < MapPoint * > lLocalMapPoints;
   for (list<KeyFrame *>::iterator lit = lLocalKeyFrames.begin(), lend = lLocalKeyFrames.end(); lit != lend; lit++) {
-    vector<MapPoint *> vpMPs = (*lit)->GetMapPointMatches();
+    vector < MapPoint * > vpMPs = (*lit)->GetMapPointMatches();
     for (vector<MapPoint *>::iterator vit = vpMPs.begin(), vend = vpMPs.end(); vit != vend; vit++) {
       MapPoint *pMP = *vit;
       if (pMP) {
-        
-        gtsam_recover->handleLandmark(pMP, pMP->isBad());
-        
+
+        gtsam_transformer->handleLandmark(pMP, pMP->isBad());
+
         if (!pMP->isBad())
           if (pMP->mnBALocalForKF != pKF->mnId) {
             lLocalMapPoints.push_back(pMP);
@@ -476,16 +476,16 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
   }
 
   // Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
-  list<KeyFrame *> lFixedCameras;
+  list < KeyFrame * > lFixedCameras;
   for (list<MapPoint *>::iterator lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; lit++) {
-    map<KeyFrame *, size_t> observations = (*lit)->GetObservations();
+    map < KeyFrame * , size_t > observations = (*lit)->GetObservations();
     for (map<KeyFrame *, size_t>::iterator mit = observations.begin(), mend = observations.end(); mit != mend; mit++) {
       KeyFrame *pKFi = mit->first;
 
       if (pKFi->mnBALocalForKF != pKF->mnId && pKFi->mnBAFixedForKF != pKF->mnId) {
 
-        gtsam_recover->handleKeyframe(pKFi, pKFi->isBad());
-        
+        gtsam_transformer->handleKeyframe(pKFi, pKFi->isBad());
+
         pKFi->mnBAFixedForKF = pKF->mnId;
         if (!pKFi->isBad())
           lFixedCameras.push_back(pKFi);
@@ -519,7 +519,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
     optimizer.addVertex(vSE3);
     if (pKFi->mnId > maxKFid)
       maxKFid = pKFi->mnId;
-    gtsam_recover->addKeyFrame(pKFi, pKFi->mnId == 0);
+    gtsam_transformer->addKeyFrame(pKFi);
   }
 
   // Set Fixed KeyFrame vertices
@@ -532,28 +532,28 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
     optimizer.addVertex(vSE3);
     if (pKFi->mnId > maxKFid)
       maxKFid = pKFi->mnId;
-    gtsam_recover->addKeyFrame(pKFi, true);
+    gtsam_transformer->addKeyFrame(pKFi);
   }
 
   // Set MapPoint vertices
   const int nExpectedSize = (lLocalKeyFrames.size() + lFixedCameras.size()) * lLocalMapPoints.size();
 
-  vector<g2o::EdgeSE3ProjectXYZ *> vpEdgesMono;
+  vector < g2o::EdgeSE3ProjectXYZ * > vpEdgesMono;
   vpEdgesMono.reserve(nExpectedSize);
 
-  vector<KeyFrame *> vpEdgeKFMono;
+  vector < KeyFrame * > vpEdgeKFMono;
   vpEdgeKFMono.reserve(nExpectedSize);
 
-  vector<MapPoint *> vpMapPointEdgeMono;
+  vector < MapPoint * > vpMapPointEdgeMono;
   vpMapPointEdgeMono.reserve(nExpectedSize);
 
-  vector<g2o::EdgeStereoSE3ProjectXYZ *> vpEdgesStereo;
+  vector < g2o::EdgeStereoSE3ProjectXYZ * > vpEdgesStereo;
   vpEdgesStereo.reserve(nExpectedSize);
 
-  vector<KeyFrame *> vpEdgeKFStereo;
+  vector < KeyFrame * > vpEdgeKFStereo;
   vpEdgeKFStereo.reserve(nExpectedSize);
 
-  vector<MapPoint *> vpMapPointEdgeStereo;
+  vector < MapPoint * > vpMapPointEdgeStereo;
   vpMapPointEdgeStereo.reserve(nExpectedSize);
 
   const float thHuberMono = sqrt(5.991);
@@ -568,7 +568,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
     vPoint->setMarginalized(true);
     optimizer.addVertex(vPoint);
 
-    gtsam_recover->addLandmark(pMP);
+    gtsam_transformer->addLandmark(pMP);
 
     const map<KeyFrame *, size_t> observations = pMP->GetObservations();
 
@@ -605,7 +605,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
           vpEdgesMono.push_back(e);
           vpEdgeKFMono.push_back(pKFi);
           vpMapPointEdgeMono.push_back(pMP);
-          gtsam_recover->addMonoMeasurement(pKFi, pMP, obs, invSigma2);
+          gtsam_transformer->addMonoMeasurement(pKFi, pMP, obs, invSigma2);
         } else // Stereo observation
         {
           Eigen::Matrix<double, 3, 1> obs;
@@ -635,7 +635,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
           vpEdgesStereo.push_back(e);
           vpEdgeKFStereo.push_back(pKFi);
           vpMapPointEdgeStereo.push_back(pMP);
-          gtsam_recover->addStereoMeasurement(pKFi, pMP, obs, invSigma2);
+          gtsam_transformer->addStereoMeasurement(pKFi, pMP, obs, invSigma2);
         }
       }
     }
@@ -692,7 +692,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
 
   }
 
-  vector<pair<KeyFrame *, MapPoint *> > vToErase;
+  vector<pair<KeyFrame *, MapPoint *>> vToErase;
   vToErase.reserve(vpEdgesMono.size() + vpEdgesStereo.size());
 
   // Check inlier observations
@@ -729,6 +729,9 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
     for (size_t i = 0; i < vToErase.size(); i++) {
       KeyFrame *pKFi = vToErase[i].first;
       MapPoint *pMPi = vToErase[i].second;
+
+      gtsam_transformer->removeFactor(pKFi, pMPi);
+
       pKFi->EraseMapPointMatch(pMPi);
       pMPi->EraseObservation(pKFi);
     }
@@ -742,7 +745,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
     g2o::VertexSE3Expmap *vSE3 = static_cast<g2o::VertexSE3Expmap *>(optimizer.vertex(pKF->mnId));
     g2o::SE3Quat SE3quat = vSE3->estimate();
     pKF->SetPose(Converter::toCvMat(SE3quat));
-    gtsam_recover->setKeyFramePose(pKF, SE3quat);
+    gtsam_transformer->setKeyFramePose(pKF, SE3quat);
   }
 
   //Points
@@ -751,9 +754,9 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
     g2o::VertexSBAPointXYZ *vPoint = static_cast<g2o::VertexSBAPointXYZ *>(optimizer.vertex(pMP->mnId + maxKFid + 1));
     pMP->SetWorldPos(Converter::toCvMat(vPoint->estimate()));
     pMP->UpdateNormalAndDepth();
-    gtsam_recover->setLandmarkPose(pMP, vPoint->estimate());
+    gtsam_transformer->setLandmarkPose(pMP, vPoint->estimate());
   }
-  gtsam_recover->finish();
+  gtsam_transformer->finish();
 }
 
 void Optimizer::OptimizeEssentialGraph(Map *pMap, KeyFrame *pLoopKF, KeyFrame *pCurKF,

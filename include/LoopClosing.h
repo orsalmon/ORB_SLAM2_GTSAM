@@ -26,7 +26,7 @@
 #include "Map.h"
 #include "ORBVocabulary.h"
 #include "Tracking.h"
-#include "AnplGtsamRecover.h"
+#include "GtsamTransformer.h"
 
 #include "KeyFrameDatabase.h"
 
@@ -39,7 +39,7 @@ namespace ORB_SLAM2 {
 class Tracking;
 class LocalMapping;
 class KeyFrameDatabase;
-class AnplGtsamRecover;
+class GtsamTransformer;
 
 class LoopClosing {
  public:
@@ -50,7 +50,7 @@ class LoopClosing {
 
  public:
 
-  LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, const bool bFixScale, AnplGtsamRecover *gtsam_recover = nullptr);
+  LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, const bool bFixScale, GtsamTransformer *gtsam_transformer = nullptr);
 
   void SetTracker(Tracking *pTracker);
 
@@ -143,7 +143,7 @@ class LoopClosing {
 
   bool mnFullBAIdx;
 
-  AnplGtsamRecover *gtsam_recover_;
+  GtsamTransformer *gtsam_transformer_;
 };
 
 } //namespace ORB_SLAM

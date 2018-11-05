@@ -27,9 +27,9 @@
 
 namespace ORB_SLAM2 {
 
-LocalMapping::LocalMapping(Map *pMap, const float bMonocular, AnplGtsamRecover *gtsam_recover) :
+LocalMapping::LocalMapping(Map *pMap, const float bMonocular, GtsamTransformer *gtsam_transformer) :
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
-    mbAbortBA(false), mbStopped(false), mbStopRequested(false), mbNotStop(false), mbAcceptKeyFrames(true), gtsam_recover_(gtsam_recover) {
+    mbAbortBA(false), mbStopped(false), mbStopRequested(false), mbNotStop(false), mbAcceptKeyFrames(true), gtsam_transformer_(gtsam_transformer) {
 }
 
 void LocalMapping::SetLoopCloser(LoopClosing *pLoopCloser) {
@@ -69,7 +69,7 @@ void LocalMapping::Run() {
             if (!CheckNewKeyFrames() && !stopRequested()) {
                 // Local BA
                 if (mpMap->KeyFramesInMap() > 2)
-                    Optimizer::LocalBundleAdjustment(mpCurrentKeyFrame, &mbAbortBA, mpMap, gtsam_recover_);
+                    Optimizer::LocalBundleAdjustment(mpCurrentKeyFrame, &mbAbortBA, mpMap, gtsam_transformer_);
 
                 // Check redundant local Keyframes
                 KeyFrameCulling();
