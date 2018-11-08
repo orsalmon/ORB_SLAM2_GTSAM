@@ -37,7 +37,7 @@ if(NOT OpenCV_FOUND)
 endif()
 
 #find_package(Eigen3 3.1.0 REQUIRED)
-set(EIGEN3_INCLUDE_DIR "/app/gtsam-3.2.1/gtsam/3rdparty/Eigen")
+set(EIGEN3_INCLUDE_DIR "/usr/ANPLprefix/include/gtsam/3rdparty/Eigen")
 find_package(Pangolin REQUIRED)
 find_package(Boost 	REQUIRED COMPONENTS system serialization graph)
 set(GTSAM_LIBRARIES gtsam tbb tbbmalloc)
@@ -96,9 +96,9 @@ target_link_libraries(rgbd_tum ${PROJECT_NAME})
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Stereo)
 
-add_executable(stereo_kitti
-        Examples/Stereo/stereo_kitti.cc)
-target_link_libraries(stereo_kitti ${PROJECT_NAME})
+#add_executable(stereo_kitti
+#        Examples/Stereo/stereo_kitti.cc)
+#target_link_libraries(stereo_kitti ${PROJECT_NAME})
 
 add_executable(stereo_euroc
         Examples/Stereo/stereo_euroc.cc)

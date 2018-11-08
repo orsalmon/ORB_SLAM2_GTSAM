@@ -73,7 +73,7 @@ SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${g2o_C_FLAGS}")
 #ELSE(EIGEN3_FOUND)
 #  SET(G2O_EIGEN3_INCLUDE "" CACHE PATH "Directory of Eigen3")
 #ENDIF(EIGEN3_FOUND)
-set(EIGEN3_INCLUDE_DIR "/app/gtsam-3.2.1/gtsam/3rdparty/Eigen")
+set(EIGEN3_INCLUDE_DIR "/usr/ANPLprefix/include/gtsam/3rdparty/Eigen")
 
 # Generate config.h
 SET(G2O_CXX_COMPILER "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER}")
@@ -84,7 +84,7 @@ INCLUDE_DIRECTORIES(
 ${g2o_SOURCE_DIR}/core
 ${g2o_SOURCE_DIR}/types
 ${g2o_SOURCE_DIR}/stuff 
-${G2O_EIGEN3_INCLUDE})
+${EIGEN3_INCLUDE_DIR})
 
 # Include the subdirectories
 ADD_LIBRARY(g2o ${G2O_LIB_TYPE}
