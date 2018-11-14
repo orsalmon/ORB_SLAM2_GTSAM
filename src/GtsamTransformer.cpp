@@ -48,6 +48,11 @@ void GtsamTransformer::addKeyFrame(ORB_SLAM2::KeyFrame *pKF) {
     values_.update(sym.key(), stereo_cam);
   else
     values_.insert(sym.key(), stereo_cam);
+  add_values_.insert(sym.key(), stereo_cam);
+
+  if (pKF->mTimeStamp > recent_kf_.second) {
+    recent_kf_ = std::make_pair(sym.key(), pKF->mTimeStamp);
+  }
 }
 
 void GtsamTransformer::addLandmark(ORB_SLAM2::MapPoint *pMP) {
@@ -64,6 +69,7 @@ void GtsamTransformer::addLandmark(ORB_SLAM2::MapPoint *pMP) {
     values_.update(sym.key(), p_gtsam);
   else
     values_.insert(sym.key(), p_gtsam);
+  add_values_.insert(sym.key(), p_gtsam);
 }
 
 void GtsamTransformer::addMonoMeasurement(ORB_SLAM2::KeyFrame *pKF,
@@ -87,7 +93,7 @@ void GtsamTransformer::addMonoMeasurement(ORB_SLAM2::KeyFrame *pKF,
              keyframe_sym.key(),
              landmark_sym.key(),
              cam_params_mono_);
-  session_factors_[std::make_pair(keyframe_sym.key(), landmark_sym.key())] = gtsam::serialize(factor);
+  session_factors_[std::make_pair(keyframe_sym.key(), landmark_sym.key())] = std::make_pair(gtsam::serialize(factor), false);
 }
 
 void GtsamTransformer::addStereoMeasurement(ORB_SLAM2::KeyFrame *pKF,
@@ -111,7 +117,7 @@ void GtsamTransformer::addStereoMeasurement(ORB_SLAM2::KeyFrame *pKF,
              keyframe_sym.key(),
              landmark_sym.key(),
              cam_params_stereo_);
-  session_factors_[std::make_pair(keyframe_sym.key(), landmark_sym.key())] = gtsam::serialize(factor);
+  session_factors_[std::make_pair(keyframe_sym.key(), landmark_sym.key())] = std::make_pair(gtsam::serialize(factor), true);
 }
 
 void GtsamTransformer::setKeyFramePose(ORB_SLAM2::KeyFrame *pKF, g2o::SE3Quat pose) {
@@ -132,6 +138,7 @@ void GtsamTransformer::setKeyFramePose(ORB_SLAM2::KeyFrame *pKF, g2o::SE3Quat po
   gtsam::StereoCamera stereo_cam(left_cam_pose, cam_params_stereo_);
 
   values_.update(sym.key(), stereo_cam);
+  add_values_.update(sym.key(), stereo_cam);
 }
 
 void GtsamTransformer::setLandmarkPose(ORB_SLAM2::MapPoint *pMP, g2o::Vector3d position) {
@@ -145,30 +152,33 @@ void GtsamTransformer::setLandmarkPose(ORB_SLAM2::MapPoint *pMP, g2o::Vector3d p
   gtsam::Point3 p_gtsam(position(0), position(1), position(2));
 
   values_.update(sym.key(), p_gtsam);
+  add_values_.update(sym.key(), p_gtsam);
 }
 
 std::tuple<bool,
            boost::optional<bool>,
-           boost::optional<std::vector<std::string>>,
+           boost::optional<std::string>,
            boost::optional<std::vector<std::pair<gtsam::Key, gtsam::Key>>>,
            boost::optional<std::set<gtsam::Key>>,
            boost::optional<std::set<gtsam::Key>>,
-           boost::optional<gtsam::Values>> GtsamTransformer::checkForNewData() {
+           boost::optional<gtsam::Values>,
+           boost::optional<std::pair<gtsam::Key, double>>> GtsamTransformer::checkForNewData() {
+  if (ready_data_queue_.empty()) {
+#ifdef DEBUG
+    logger_->debug("checkForNewData - there is no new data.");
+#endif
+    return std::make_tuple(false, boost::none, boost::none, boost::none, boost::none, boost::none, boost::none, boost::none);
+  }
   std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
   if (lock.owns_lock()) {
-    if (new_optimized_data_) {
-      logger_->info("checkForNewData - returning new optimized data");
-      new_optimized_data_ = false;
-      return std::make_tuple(true, is_full_BA_data_, add_factors_, del_factors_, add_states_, del_states_, values_);
-    } else {
-#ifdef DEBUG
-      logger_->debug("checkForNewData - there is no new data.");
-#endif
-    }
+    logger_->info("checkForNewData - returning new optimized data");
+    auto data = ready_data_queue_.front();
+    ready_data_queue_.pop();
+    return data;
   } else {
     logger_->error("checkForNewData - can't own mutex. returning false");
+    return std::make_tuple(false, boost::none, boost::none, boost::none, boost::none, boost::none, boost::none, boost::none);
   }
-  return std::make_tuple(false, boost::none, boost::none, boost::none, boost::none, boost::none, boost::none);
 }
 
 void GtsamTransformer::handleKeyframe(ORB_SLAM2::KeyFrame *pKF, bool is_bad) {
@@ -223,7 +233,7 @@ void GtsamTransformer::updateActiveSets() {
 #endif
 
   // Handle added factors
-  std::map<std::pair<gtsam::Key, gtsam::Key>, std::string> add_factors_map;
+  std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, bool>> add_factors_map;
   if (active_factors_.empty()) {
     add_factors_map = session_factors_;
     exportValuesFromMap(add_factors_map, add_factors_);
@@ -261,17 +271,15 @@ void GtsamTransformer::start(bool is_full_BA) {
   std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
   if (lock.owns_lock()) {
     logger_->info("start - new recovering session. is_full_BA: {}", is_full_BA);
-    if (!new_optimized_data_) {
-      add_states_.clear();
-      del_states_.clear();
-      session_states_.clear();
+    add_states_.clear();
+    del_states_.clear();
+    session_states_.clear();
 
-      add_factors_.clear();
-      del_factors_.clear();
-      session_factors_.clear();
-    }
+    add_factors_.clear();
+    del_factors_.clear();
+    session_factors_.clear();
 
-    new_optimized_data_ = false; // To make the data available only after finish processing
+    add_values_.clear();
     is_full_BA_data_ = is_full_BA;
   } else {
     logger_->warn("start - can't own mutex. returns");
@@ -287,18 +295,26 @@ void GtsamTransformer::finish() {
   logger_->info("finish - active states set size: {}", active_states_.size());
   logger_->info("finish - active factors vector size: {}", active_factors_.size());
   updateActiveSets();
-  new_optimized_data_ = true;
+  ready_data_queue_.emplace(true,
+                            is_full_BA_data_,
+                            gtsam::serialize(createFactorGraph(add_factors_)),
+                            del_factors_,
+                            add_states_,
+                            del_states_,
+                            add_values_,
+                            recent_kf_);
   delete lock;
 }
 
-void GtsamTransformer::exportKeysFromMap(std::map<std::pair<gtsam::Key, gtsam::Key>, std::string> &map,
+void GtsamTransformer::exportKeysFromMap(std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, bool>> &map,
                                          std::vector<std::pair<gtsam::Key, gtsam::Key>> &output) {
   for (const auto &it: map) {
     output.push_back(it.first);
   }
 }
 
-void GtsamTransformer::exportValuesFromMap(std::map<std::pair<gtsam::Key, gtsam::Key>, std::string> &map, std::vector<std::string> &output) {
+void GtsamTransformer::exportValuesFromMap(std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, bool>> &map,
+                                           std::vector<std::pair<std::string, bool>> &output) {
   for (const auto &it: map) {
     output.push_back(it.second);
   }
@@ -309,5 +325,25 @@ std::string GtsamTransformer::setToString(const std::set<gtsam::Key> &set) const
   for (const auto &it: set)
     ss << it << " ";
   return ss.str();
+}
+
+gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std::pair<std::string, bool>> ser_factors_vec) {
+  gtsam::NonlinearFactorGraph graph;
+
+  for (const auto &it: ser_factors_vec) {
+    // Stereo factor
+    if (it.second) {
+      gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3> factor;
+      gtsam::deserialize(it.first, factor);
+      graph.push_back(factor);
+    }
+      // Mono factor
+    else {
+      gtsam::GenericProjectionFactor<gtsam::Pose3, gtsam::Point3, gtsam::Cal3_S2> factor;
+      gtsam::deserialize(it.first, factor);
+      graph.push_back(factor);
+    }
+  }
+  return graph;
 }
 }

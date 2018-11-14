@@ -8,6 +8,7 @@
 #include <mutex>
 #include <set>
 #include <algorithm>
+#include <queue>
 
 #include "Converter.h"
 
@@ -33,7 +34,7 @@
 #include <gtsam/slam/StereoFactor.h>
 
 // Factor Container
-#include <gtsam/nonlinear/NonlinearFactor.h>
+#include <gtsam/nonlinear/NonlinearFactorGraph.h>
 // Values Container
 #include <gtsam/nonlinear/Values.h>
 
@@ -58,19 +59,21 @@ class GtsamTransformer {
    * Returns tuple contains:
    * 1. Boolean indicates if there is a new data or not
    * 2. Optional Boolean indicates if the data contains the whole graph (after global BA)
-   * 3. Optional vector contains the added factors since the last call to the function (serialized)
+   * 3. Optional string contains graph of the added factors since the last call to the function (serialized)
    * 4. Optional vector contains the pair's key (keyframe-landmark) of the factors had removed since the last call to the function
    * 5. Optional set contains the keys of the added states (keyframes/landmarks) since the last call to the function
    * 6. Optional set contains the keys of the removed states (keyframes/landmarks) since the last call to the function
-   * 7. Optional GTSAM values object contains the whole graph states with updated value
+   * 7. Optional GTSAM values object contains the values of the added states (keyframes/landmarks) since the last call to the function
+   * 8. Optional pair of the most recent keyframe key and its timestamp
    */
   std::tuple<bool,
              boost::optional<bool>,
-             boost::optional<std::vector<std::string>>,
+             boost::optional<std::string>,
              boost::optional<std::vector<std::pair<gtsam::Key, gtsam::Key>>>,
              boost::optional<std::set<gtsam::Key>>,
              boost::optional<std::set<gtsam::Key>>,
-             boost::optional<gtsam::Values>> checkForNewData();
+             boost::optional<gtsam::Values>,
+             boost::optional<std::pair<gtsam::Key, double>>> checkForNewData();
 
  protected:
   void addKeyFrame(KeyFrame *pKF);
@@ -87,20 +90,33 @@ class GtsamTransformer {
 
  private:
   void updateActiveSets();
-  void exportKeysFromMap(std::map<std::pair<gtsam::Key, gtsam::Key>, std::string> &map, std::vector<std::pair<gtsam::Key, gtsam::Key>> &output);
-  void exportValuesFromMap(std::map<std::pair<gtsam::Key, gtsam::Key>, std::string> &map, std::vector<std::string> &output);
+  void exportKeysFromMap(std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, bool>> &map,
+                         std::vector<std::pair<gtsam::Key, gtsam::Key>> &output);
+  void exportValuesFromMap(std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, bool>> &map,
+                           std::vector<std::pair<std::string, bool>> &output);
   std::string setToString(const std::set<gtsam::Key> &set) const;
+  gtsam::NonlinearFactorGraph createFactorGraph(std::vector<std::pair<std::string, bool>> ser_factors_vec);
 
-  gtsam::Values values_;
+  std::queue<std::tuple<bool,
+                        bool,
+                        std::string,
+                        std::vector<std::pair<gtsam::Key, gtsam::Key>>,
+                        std::set<gtsam::Key>,
+                        std::set<gtsam::Key>,
+                        gtsam::Values,
+                        std::pair<gtsam::Key, double>>> ready_data_queue_;
+
+  gtsam::Values values_, add_values_;
   gtsam::Cal3_S2Stereo::shared_ptr cam_params_stereo_;
   gtsam::Cal3_S2::shared_ptr cam_params_mono_;
   bool is_cam_params_initialized_ = false;
   bool new_optimized_data_ = false;
   bool is_full_BA_data_ = false;
-  std::vector<std::string> add_factors_;
+  std::vector<std::pair<std::string, bool>> add_factors_;
   std::vector<std::pair<gtsam::Key, gtsam::Key>> del_factors_;
-  std::map<std::pair<gtsam::Key, gtsam::Key>, std::string> active_factors_, session_factors_;
+  std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, bool>> active_factors_, session_factors_;
   std::set<gtsam::Key> active_states_, del_states_, add_states_, session_states_;
+  std::pair<gtsam::Key, double> recent_kf_;
 
   std::mutex mutex_;
 
