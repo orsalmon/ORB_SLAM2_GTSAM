@@ -104,10 +104,10 @@ int main(int argc, char **argv) {
 //      cout << "sleeping for: " << (T - ttrack) * 1e6 << endl;
 //      usleep((T - ttrack) * 1e6);
 //    }
-    auto result = SLAM.gtsam_recover_.checkForNewData();
+    auto result = SLAM.gtsam_transformer_.checkForNewData();
     if (std::get<0>(result)) {
-      std::cout << "Got new data! new_kf: " << std::get<4>(result)->size() << " del_kf: " << std::get<5>(result)->size() << " new_mp: "
-                << std::get<6>(result)->size() << " del_mp: " << std::get<7>(result)->size() << std::endl;
+      std::cout << "Got new data! new_states: " << std::get<4>(result)->size() << " removed_states: " << std::get<5>(result)->size() << std::endl;
+      std::cout << "Most recent keyframe: " << std::get<7>(result)->first << " timestamp: " << std::get<7>(result)->second << std::endl;
     }
     usleep(1 / 10 * 1e6);
   }
