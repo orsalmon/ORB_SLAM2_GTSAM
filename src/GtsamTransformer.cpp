@@ -161,7 +161,7 @@ std::tuple<bool,
            boost::optional<std::vector<std::pair<gtsam::Key, gtsam::Key>>>,
            boost::optional<std::set<gtsam::Key>>,
            boost::optional<std::set<gtsam::Key>>,
-           boost::optional<gtsam::Values>,
+           boost::optional<std::string>,
            boost::optional<std::pair<gtsam::Key, double>>> GtsamTransformer::checkForNewData() {
   if (ready_data_queue_.empty()) {
 #ifdef DEBUG
@@ -301,7 +301,7 @@ void GtsamTransformer::finish() {
                             del_factors_,
                             add_states_,
                             del_states_,
-                            add_values_,
+                            gtsam::serialize(add_values_),
                             recent_kf_);
   delete lock;
 }

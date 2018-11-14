@@ -63,7 +63,7 @@ class GtsamTransformer {
    * 4. Optional vector contains the pair's key (keyframe-landmark) of the factors had removed since the last call to the function
    * 5. Optional set contains the keys of the added states (keyframes/landmarks) since the last call to the function
    * 6. Optional set contains the keys of the removed states (keyframes/landmarks) since the last call to the function
-   * 7. Optional GTSAM values object contains the values of the added states (keyframes/landmarks) since the last call to the function
+   * 7. Optional GTSAM values object contains the values of the added states since the last call to the function (serialized)
    * 8. Optional pair of the most recent keyframe key and its timestamp
    */
   std::tuple<bool,
@@ -72,7 +72,7 @@ class GtsamTransformer {
              boost::optional<std::vector<std::pair<gtsam::Key, gtsam::Key>>>,
              boost::optional<std::set<gtsam::Key>>,
              boost::optional<std::set<gtsam::Key>>,
-             boost::optional<gtsam::Values>,
+             boost::optional<std::string>,
              boost::optional<std::pair<gtsam::Key, double>>> checkForNewData();
 
  protected:
@@ -103,14 +103,13 @@ class GtsamTransformer {
                         std::vector<std::pair<gtsam::Key, gtsam::Key>>,
                         std::set<gtsam::Key>,
                         std::set<gtsam::Key>,
-                        gtsam::Values,
+                        std::string,
                         std::pair<gtsam::Key, double>>> ready_data_queue_;
 
   gtsam::Values values_, add_values_;
   gtsam::Cal3_S2Stereo::shared_ptr cam_params_stereo_;
   gtsam::Cal3_S2::shared_ptr cam_params_mono_;
   bool is_cam_params_initialized_ = false;
-  bool new_optimized_data_ = false;
   bool is_full_BA_data_ = false;
   std::vector<std::pair<std::string, bool>> add_factors_;
   std::vector<std::pair<gtsam::Key, gtsam::Key>> del_factors_;
