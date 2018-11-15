@@ -50,8 +50,8 @@ void GtsamTransformer::addKeyFrame(ORB_SLAM2::KeyFrame *pKF) {
     values_.insert(sym.key(), stereo_cam);
   add_values_.insert(sym.key(), stereo_cam);
 
-  if (pKF->mTimeStamp > recent_kf_.second) {
-    recent_kf_ = std::make_pair(sym.key(), pKF->mTimeStamp);
+  if (pKF->mTimeStamp > std::get<1>(recent_kf_)) {
+    recent_kf_ = std::make_tuple(gtsam::serialize(sym), pKF->mTimeStamp, gtsam::serialize(left_cam_pose));
   }
 }
 
@@ -139,6 +139,9 @@ void GtsamTransformer::setKeyFramePose(ORB_SLAM2::KeyFrame *pKF, g2o::SE3Quat po
 
   values_.update(sym.key(), stereo_cam);
   add_values_.update(sym.key(), stereo_cam);
+
+  if (gtsam::serialize(sym) == std::get<0>(recent_kf_))
+    std::get<2>(recent_kf_) = gtsam::serialize(left_cam_pose);
 }
 
 void GtsamTransformer::setLandmarkPose(ORB_SLAM2::MapPoint *pMP, g2o::Vector3d position) {
@@ -162,7 +165,7 @@ std::tuple<bool,
            boost::optional<std::set<gtsam::Key>>,
            boost::optional<std::set<gtsam::Key>>,
            boost::optional<std::string>,
-           boost::optional<std::pair<gtsam::Key, double>>> GtsamTransformer::checkForNewData() {
+           boost::optional<std::tuple<std::string, double, std::string>>> GtsamTransformer::checkForNewData() {
   if (ready_data_queue_.empty()) {
 #ifdef DEBUG
     logger_->debug("checkForNewData - there is no new data.");

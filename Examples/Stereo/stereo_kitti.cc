@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
     auto result = SLAM.gtsam_transformer_.checkForNewData();
     if (std::get<0>(result)) {
       std::cout << "Got new data! new_states: " << std::get<4>(result)->size() << " removed_states: " << std::get<5>(result)->size() << std::endl;
-      std::cout << "Most recent keyframe: " << std::get<7>(result)->first << " timestamp: " << std::get<7>(result)->second << std::endl;
+      std::cout << "Most recent timestamp: " << std::get<1>(std::get<7>(result).value()) << std::endl;
     }
     usleep(1 / 10 * 1e6);
   }
