@@ -41,10 +41,10 @@ void GtsamTransformer::addKeyFrame(ORB_SLAM2::KeyFrame *pKF) {
   gtsam::StereoCamera stereo_cam(left_cam_pose, cam_params_stereo_); // TODO: currently not used because adding factors issue
 
   if (values_.exists(sym.key()))
-    values_.update(sym.key(), stereo_cam);
+    values_.update(sym.key(), left_cam_pose);
   else
-    values_.insert(sym.key(), stereo_cam);
-  add_values_.insert(sym.key(), stereo_cam);
+    values_.insert(sym.key(), left_cam_pose);
+  add_values_.insert(sym.key(), left_cam_pose);
 
   if (pKF->mTimeStamp > std::get<1>(recent_kf_)) {
     recent_kf_ = std::make_tuple(gtsam::serialize(sym), pKF->mTimeStamp, gtsam::serialize(left_cam_pose));
@@ -129,8 +129,8 @@ void GtsamTransformer::setKeyFramePose(ORB_SLAM2::KeyFrame *pKF, g2o::SE3Quat po
   gtsam::Pose3 left_cam_pose(T_gtsam.cast<double>());
   gtsam::StereoCamera stereo_cam(left_cam_pose, cam_params_stereo_);
 
-  values_.update(sym.key(), stereo_cam);
-  add_values_.update(sym.key(), stereo_cam);
+  values_.update(sym.key(), left_cam_pose);
+  add_values_.update(sym.key(), left_cam_pose);
 
   if (gtsam::serialize(sym) == std::get<0>(recent_kf_))
     std::get<2>(recent_kf_) = gtsam::serialize(left_cam_pose);
