@@ -13,7 +13,7 @@
 //#define DEBUG
 
 namespace ORB_SLAM2 {
-GtsamTransformer::GtsamTransformer() {
+GtsamTransformer::GtsamTransformer() : is_first_time_(true) {
   logger_ = spdlog::rotating_logger_st("GtsamTransformer",
                                        "GtsamTransformer",
                                        1048576 * 50,
@@ -324,6 +324,16 @@ std::string GtsamTransformer::setToString(const std::set<gtsam::Key> &set) const
 
 gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std::pair<std::string, bool>> ser_factors_vec) {
   gtsam::NonlinearFactorGraph graph;
+
+  // Adding fixed factor for x0
+  if (is_first_time_) {
+    is_first_time_ = false;
+    gtsam::Pose3 x0_pose;
+    gtsam::Symbol x0_sym('x',0);
+    if (add_values_.exists(x0_sym.key()))
+      x0_pose = add_values_.at<gtsam::Pose3>(x0_sym.key());
+    graph.push_back(gtsam::NonlinearEquality<gtsam::Pose3>(gtsam::Symbol('x',0),x0_pose));
+  }
 
   for (const auto &it: ser_factors_vec) {
     // Stereo factor

@@ -21,6 +21,9 @@
 // For landmarks position
 #include <gtsam/geometry/Point3.h>
 
+// For first keyframe pose
+#include <gtsam/nonlinear/NonlinearEquality.h>
+
 //// Mono ////
 // For landmarks coordinates
 #include <gtsam/geometry/Point2.h>
@@ -116,6 +119,7 @@ class GtsamTransformer {
   std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, bool>> active_factors_, session_factors_;
   std::set<gtsam::Key> active_states_, del_states_, add_states_, session_states_;
   std::tuple<std::string, double, std::string> recent_kf_;
+  bool is_first_time_;
 
   std::mutex mutex_;
 
