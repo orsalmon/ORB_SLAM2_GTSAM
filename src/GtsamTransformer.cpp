@@ -18,14 +18,16 @@ GtsamTransformer::GtsamTransformer() : is_first_time_(true) {
                                        "GtsamTransformer",
                                        1048576 * 50,
                                        3);
+#ifdef DEBUG
   logger_->set_level(spdlog::level::debug);
+#else
+  logger_->set_level(spdlog::level::info);
+#endif
   logger_->info("CTOR - GtsamTransformer instance created");
 }
 
 void GtsamTransformer::addKeyFrame(ORB_SLAM2::KeyFrame *pKF) {
-#ifdef DEBUG
   logger_->debug("addKeyFrame - pKF->mnId: {}", pKF->mnId);
-#endif
   // Create unique symbol
   gtsam::Symbol sym('x', pKF->mnId);
   // Create camera parameters
@@ -52,9 +54,7 @@ void GtsamTransformer::addKeyFrame(ORB_SLAM2::KeyFrame *pKF) {
 }
 
 void GtsamTransformer::addLandmark(ORB_SLAM2::MapPoint *pMP) {
-#ifdef DEBUG
   logger_->debug("addLandmark - pMP->mnId: {}", pMP->mnId);
-#endif
   // Create unique symbol
   gtsam::Symbol sym('l', pMP->mnId);
   // Create landmark position
@@ -72,9 +72,7 @@ void GtsamTransformer::addMonoMeasurement(ORB_SLAM2::KeyFrame *pKF,
                                           ORB_SLAM2::MapPoint *pMP,
                                           Eigen::Matrix<double, 2, 1> &obs,
                                           const float inv_sigma_2) {
-#ifdef DEBUG
   logger_->debug("addMonoMeasurement - pKF->mnId: {}, pMP->mnId: {}", pKF->mnId, pMP->mnId);
-#endif
   // Create both symbols
   gtsam::Symbol keyframe_sym('x', pKF->mnId);
   gtsam::Symbol landmark_sym('l', pMP->mnId);
@@ -96,9 +94,7 @@ void GtsamTransformer::addStereoMeasurement(ORB_SLAM2::KeyFrame *pKF,
                                             ORB_SLAM2::MapPoint *pMP,
                                             Eigen::Matrix<double, 3, 1> &obs,
                                             const float inv_sigma_2) {
-#ifdef DEBUG
   logger_->debug("addStereoMeasurement - pKF->mnId: {}, pMP->mnId: {}", pKF->mnId, pMP->mnId);
-#endif
   // Create both symbols
   gtsam::Symbol keyframe_sym('x', pKF->mnId);
   gtsam::Symbol landmark_sym('l', pMP->mnId);
@@ -117,9 +113,7 @@ void GtsamTransformer::addStereoMeasurement(ORB_SLAM2::KeyFrame *pKF,
 }
 
 void GtsamTransformer::setKeyFramePose(ORB_SLAM2::KeyFrame *pKF, g2o::SE3Quat pose) {
-#ifdef DEBUG
   logger_->debug("setKeyFramePose - pKF->mnId: {}", pKF->mnId);
-#endif
   // Create keyframe symbol
   gtsam::Symbol sym('x', pKF->mnId);
 
@@ -137,9 +131,7 @@ void GtsamTransformer::setKeyFramePose(ORB_SLAM2::KeyFrame *pKF, g2o::SE3Quat po
 }
 
 void GtsamTransformer::setLandmarkPose(ORB_SLAM2::MapPoint *pMP, g2o::Vector3d position) {
-#ifdef DEBUG
   logger_->debug("setLandmarkPose - pMP->mnId: {}", pMP->mnId);
-#endif
   // Create keyframe symbol
   gtsam::Symbol sym('l', pMP->mnId);
 
@@ -159,9 +151,7 @@ std::tuple<bool,
            boost::optional<std::string>,
            boost::optional<std::tuple<std::string, double, std::string>>> GtsamTransformer::checkForNewData() {
   if (ready_data_queue_.empty()) {
-#ifdef DEBUG
     logger_->debug("checkForNewData - there is no new data.");
-#endif
     return std::make_tuple(false, boost::none, boost::none, boost::none, boost::none, boost::none, boost::none, boost::none);
   }
   std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
@@ -188,9 +178,7 @@ void GtsamTransformer::removeFactor(ORB_SLAM2::KeyFrame *pKF, ORB_SLAM2::MapPoin
   gtsam::Symbol keyframe_sym('x', pKF->mnId);
   gtsam::Symbol landmark_sym('l', pMP->mnId);
   del_factors_.emplace_back(keyframe_sym.key(), landmark_sym.key());
-#ifdef DEBUG
   logger_->debug("removeFactor - pKF->mnId: {}, pMP->mnId: {}", pKF->mnId, pMP->mnId);
-#endif
 }
 
 void GtsamTransformer::updateActiveSets() {
@@ -222,10 +210,8 @@ void GtsamTransformer::updateActiveSets() {
   }
   active_states_.insert(add_states_.begin(), add_states_.end());
 
-#ifdef DEBUG
   logger_->debug("updateActiveSets - add_states: {}", setToString(add_states_));
   logger_->debug("updateActiveSets - del_states: {}", setToString(del_states_));
-#endif
 
   // Handle added factors
   std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, bool>> add_factors_map;
