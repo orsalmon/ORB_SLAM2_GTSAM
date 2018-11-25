@@ -36,13 +36,9 @@ void GtsamTransformer::addKeyFrame(ORB_SLAM2::KeyFrame *pKF) {
   }
   // Create camera pose3
   cv::Mat T_cv = pKF->GetPose();
-  gtsam::Matrix4 T_gtsam;
-  T_gtsam << T_cv.at<double>(0, 0), T_cv.at<double>(0, 1), T_cv.at<double>(0, 2), T_cv.at<double>(0, 3)
-      , T_cv.at<double>(1, 0), T_cv.at<double>(1, 1), T_cv.at<double>(1, 2), T_cv.at<double>(1, 3)
-      , T_cv.at<double>(2, 0), T_cv.at<double>(2, 1), T_cv.at<double>(2, 2), T_cv.at<double>(2, 3)
-      , T_cv.at<double>(3, 0), T_cv.at<double>(3, 1), T_cv.at<double>(3, 2), T_cv.at<double>(3, 3);
-  gtsam::Pose3 left_cam_pose(T_gtsam);
-  gtsam::StereoCamera stereo_cam(left_cam_pose, cam_params_stereo_);
+  Eigen::Map<Eigen::Matrix<float, 4, 4, Eigen::RowMajor>> T_gtsam(T_cv.ptr<float>(), T_cv.rows, T_cv.cols);
+  gtsam::Pose3 left_cam_pose(T_gtsam.cast<double>());
+  gtsam::StereoCamera stereo_cam(left_cam_pose, cam_params_stereo_); // TODO: currently not used because adding factors issue
 
   if (values_.exists(sym.key()))
     values_.update(sym.key(), stereo_cam);
@@ -63,7 +59,7 @@ void GtsamTransformer::addLandmark(ORB_SLAM2::MapPoint *pMP) {
   gtsam::Symbol sym('l', pMP->mnId);
   // Create landmark position
   cv::Mat p_cv = pMP->GetWorldPos();
-  gtsam::Point3 p_gtsam(p_cv.at<double>(0), p_cv.at<double>(1), p_cv.at<double>(2));
+  gtsam::Point3 p_gtsam(p_cv.at<float>(0), p_cv.at<float>(1), p_cv.at<float>(2));
 
   if (values_.exists(sym.key()))
     values_.update(sym.key(), p_gtsam);
@@ -129,12 +125,8 @@ void GtsamTransformer::setKeyFramePose(ORB_SLAM2::KeyFrame *pKF, g2o::SE3Quat po
 
   // Create pose
   cv::Mat T_cv = Converter::toCvMat(pose);
-  gtsam::Matrix4 T_gtsam;
-  T_gtsam << T_cv.at<double>(0, 0), T_cv.at<double>(0, 1), T_cv.at<double>(0, 2), T_cv.at<double>(0, 3)
-      , T_cv.at<double>(1, 0), T_cv.at<double>(1, 1), T_cv.at<double>(1, 2), T_cv.at<double>(1, 3)
-      , T_cv.at<double>(2, 0), T_cv.at<double>(2, 1), T_cv.at<double>(2, 2), T_cv.at<double>(2, 3)
-      , T_cv.at<double>(3, 0), T_cv.at<double>(3, 1), T_cv.at<double>(3, 2), T_cv.at<double>(3, 3);
-  gtsam::Pose3 left_cam_pose(T_gtsam);
+  Eigen::Map<Eigen::Matrix<float, 4, 4, Eigen::RowMajor>> T_gtsam(T_cv.ptr<float>(), T_cv.rows, T_cv.cols);
+  gtsam::Pose3 left_cam_pose(T_gtsam.cast<double>());
   gtsam::StereoCamera stereo_cam(left_cam_pose, cam_params_stereo_);
 
   values_.update(sym.key(), stereo_cam);
