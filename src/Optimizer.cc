@@ -72,7 +72,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
 
   long unsigned int maxKFid = 0;
 
-  bool is_gtsam_transformer_active = gtsam_transformer->start(true);
+  bool is_gtsam_transformer_active = gtsam_transformer->start();
 
   // Set KeyFrame vertices
   for (size_t i = 0; i < vpKFs.size(); i++) {
@@ -452,7 +452,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
   lLocalKeyFrames.push_back(pKF);
   pKF->mnBALocalForKF = pKF->mnId;
 
-  bool is_gtsam_transformer_active = gtsam_transformer->start(false);
+  bool is_gtsam_transformer_active = gtsam_transformer->start();
 
   const vector<KeyFrame *> vNeighKFs = pKF->GetVectorCovisibleKeyFrames();
   for (int i = 0, iend = vNeighKFs.size(); i < iend; i++) {
