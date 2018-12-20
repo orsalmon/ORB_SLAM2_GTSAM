@@ -72,13 +72,14 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
 
   long unsigned int maxKFid = 0;
 
-  gtsam_transformer->start(true);
+  bool is_gtsam_transformer_active = gtsam_transformer->start(true);
 
   // Set KeyFrame vertices
   for (size_t i = 0; i < vpKFs.size(); i++) {
     KeyFrame *pKF = vpKFs[i];
 
-    gtsam_transformer->handleKeyframe(pKF, pKF->isBad());
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->handleKeyframe(pKF, pKF->isBad());
 
     if (pKF->isBad())
       continue;
@@ -90,7 +91,8 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
     if (pKF->mnId > maxKFid)
       maxKFid = pKF->mnId;
 
-    gtsam_transformer->addKeyFrame(pKF);
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->addKeyFrame(pKF);
   }
 
   const float thHuber2D = sqrt(5.99);
@@ -100,7 +102,8 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
   for (size_t i = 0; i < vpMP.size(); i++) {
     MapPoint *pMP = vpMP[i];
 
-    gtsam_transformer->handleLandmark(pMP, pMP->isBad());
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->handleLandmark(pMP, pMP->isBad());
 
     if (pMP->isBad())
       continue;
@@ -111,7 +114,8 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
     vPoint->setMarginalized(true);
     optimizer.addVertex(vPoint);
 
-    gtsam_transformer->addLandmark(pMP);
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->addLandmark(pMP);
 
     const map<KeyFrame *, size_t> observations = pMP->GetObservations();
 
@@ -152,7 +156,8 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
 
         optimizer.addEdge(e);
 
-        gtsam_transformer->addMonoMeasurement(pKF, pMP, obs, invSigma2);
+        if (is_gtsam_transformer_active)
+          gtsam_transformer->addMonoMeasurement(pKF, pMP, obs, invSigma2);
       } else {
         Eigen::Matrix<double, 3, 1> obs;
         const float kp_ur = pKF->mvuRight[mit->second];
@@ -180,7 +185,8 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
         e->bf = pKF->mbf;
 
         optimizer.addEdge(e);
-        gtsam_transformer->addStereoMeasurement(pKF, pMP, obs, invSigma2);
+        if (is_gtsam_transformer_active)
+          gtsam_transformer->addStereoMeasurement(pKF, pMP, obs, invSigma2);
       }
     }
 
@@ -212,7 +218,8 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
       Converter::toCvMat(SE3quat).copyTo(pKF->mTcwGBA);
       pKF->mnBAGlobalForKF = nLoopKF;
     }
-    gtsam_transformer->setKeyFramePose(pKF, SE3quat);
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->setKeyFramePose(pKF, SE3quat);
   }
 
   //Points
@@ -234,10 +241,12 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs,
       Converter::toCvMat(vPoint->estimate()).copyTo(pMP->mPosGBA);
       pMP->mnBAGlobalForKF = nLoopKF;
     }
-    gtsam_transformer->setLandmarkPose(pMP, vPoint->estimate());
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->setLandmarkPose(pMP, vPoint->estimate());
   }
 
-  gtsam_transformer->finish();
+  if (is_gtsam_transformer_active)
+    gtsam_transformer->finish();
 }
 
 int Optimizer::PoseOptimization(Frame *pFrame) {
@@ -443,13 +452,14 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
   lLocalKeyFrames.push_back(pKF);
   pKF->mnBALocalForKF = pKF->mnId;
 
-  gtsam_transformer->start(false);
+  bool is_gtsam_transformer_active = gtsam_transformer->start(false);
 
   const vector<KeyFrame *> vNeighKFs = pKF->GetVectorCovisibleKeyFrames();
   for (int i = 0, iend = vNeighKFs.size(); i < iend; i++) {
     KeyFrame *pKFi = vNeighKFs[i];
 
-    gtsam_transformer->handleKeyframe(pKFi, pKFi->isBad());
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->handleKeyframe(pKFi, pKFi->isBad());
 
     pKFi->mnBALocalForKF = pKF->mnId;
     if (!pKFi->isBad())
@@ -464,7 +474,8 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
       MapPoint *pMP = *vit;
       if (pMP) {
 
-        gtsam_transformer->handleLandmark(pMP, pMP->isBad());
+        if (is_gtsam_transformer_active)
+          gtsam_transformer->handleLandmark(pMP, pMP->isBad());
 
         if (!pMP->isBad())
           if (pMP->mnBALocalForKF != pKF->mnId) {
@@ -484,7 +495,8 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
 
       if (pKFi->mnBALocalForKF != pKF->mnId && pKFi->mnBAFixedForKF != pKF->mnId) {
 
-        gtsam_transformer->handleKeyframe(pKFi, pKFi->isBad());
+        if (is_gtsam_transformer_active)
+          gtsam_transformer->handleKeyframe(pKFi, pKFi->isBad());
 
         pKFi->mnBAFixedForKF = pKF->mnId;
         if (!pKFi->isBad())
@@ -519,7 +531,8 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
     optimizer.addVertex(vSE3);
     if (pKFi->mnId > maxKFid)
       maxKFid = pKFi->mnId;
-    gtsam_transformer->addKeyFrame(pKFi);
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->addKeyFrame(pKFi);
   }
 
   // Set Fixed KeyFrame vertices
@@ -532,7 +545,8 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
     optimizer.addVertex(vSE3);
     if (pKFi->mnId > maxKFid)
       maxKFid = pKFi->mnId;
-    gtsam_transformer->addKeyFrame(pKFi);
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->addKeyFrame(pKFi);
   }
 
   // Set MapPoint vertices
@@ -568,7 +582,8 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
     vPoint->setMarginalized(true);
     optimizer.addVertex(vPoint);
 
-    gtsam_transformer->addLandmark(pMP);
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->addLandmark(pMP);
 
     const map<KeyFrame *, size_t> observations = pMP->GetObservations();
 
@@ -605,7 +620,8 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
           vpEdgesMono.push_back(e);
           vpEdgeKFMono.push_back(pKFi);
           vpMapPointEdgeMono.push_back(pMP);
-          gtsam_transformer->addMonoMeasurement(pKFi, pMP, obs, invSigma2);
+          if (is_gtsam_transformer_active)
+            gtsam_transformer->addMonoMeasurement(pKFi, pMP, obs, invSigma2);
         } else // Stereo observation
         {
           Eigen::Matrix<double, 3, 1> obs;
@@ -635,15 +651,23 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
           vpEdgesStereo.push_back(e);
           vpEdgeKFStereo.push_back(pKFi);
           vpMapPointEdgeStereo.push_back(pMP);
-          gtsam_transformer->addStereoMeasurement(pKFi, pMP, obs, invSigma2);
+          if (is_gtsam_transformer_active)
+            gtsam_transformer->addStereoMeasurement(pKFi, pMP, obs, invSigma2);
         }
       }
     }
   }
 
+  std::ofstream g2o_graph("G2O_GRAPH.txt");
+  optimizer.save(g2o_graph);
+  g2o_graph.close();
+
   if (pbStopFlag)
-    if (*pbStopFlag)
+    if (*pbStopFlag) {
+      if (is_gtsam_transformer_active)
+        gtsam_transformer->finish();
       return;
+    }
 
   optimizer.initializeOptimization();
   optimizer.optimize(5);
@@ -730,7 +754,8 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
       KeyFrame *pKFi = vToErase[i].first;
       MapPoint *pMPi = vToErase[i].second;
 
-      gtsam_transformer->removeFactor(pKFi, pMPi);
+      if (is_gtsam_transformer_active)
+        gtsam_transformer->removeFactor(pKFi, pMPi);
 
       pKFi->EraseMapPointMatch(pMPi);
       pMPi->EraseObservation(pKFi);
@@ -745,7 +770,8 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
     g2o::VertexSE3Expmap *vSE3 = static_cast<g2o::VertexSE3Expmap *>(optimizer.vertex(pKF->mnId));
     g2o::SE3Quat SE3quat = vSE3->estimate();
     pKF->SetPose(Converter::toCvMat(SE3quat));
-    gtsam_transformer->setKeyFramePose(pKF, SE3quat);
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->setKeyFramePose(pKF, SE3quat);
   }
 
   //Points
@@ -754,9 +780,11 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
     g2o::VertexSBAPointXYZ *vPoint = static_cast<g2o::VertexSBAPointXYZ *>(optimizer.vertex(pMP->mnId + maxKFid + 1));
     pMP->SetWorldPos(Converter::toCvMat(vPoint->estimate()));
     pMP->UpdateNormalAndDepth();
-    gtsam_transformer->setLandmarkPose(pMP, vPoint->estimate());
+    if (is_gtsam_transformer_active)
+      gtsam_transformer->setLandmarkPose(pMP, vPoint->estimate());
   }
-  gtsam_transformer->finish();
+  if (is_gtsam_transformer_active)
+    gtsam_transformer->finish();
 }
 
 void Optimizer::OptimizeEssentialGraph(Map *pMap, KeyFrame *pLoopKF, KeyFrame *pCurKF,
