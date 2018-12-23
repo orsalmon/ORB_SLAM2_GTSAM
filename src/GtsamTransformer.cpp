@@ -230,6 +230,9 @@ void GtsamTransformer::updateActiveSets() {
   // Update active set
   if (!del_states_.empty()) {
     for (const auto &it: del_states_) {
+      gtsam::Symbol key1(it);
+      std::cout << "updateActiveSets - state to remove: " << key1.chr() << key1.index() << std::endl;
+
       active_states_.erase(it);
     }
   }
@@ -256,7 +259,7 @@ void GtsamTransformer::updateActiveSets() {
     for (const auto &it: del_factors_) {
       gtsam::Symbol key1(it.first);
       gtsam::Symbol key2(it.second);
-      std::cout << "updateActiveSets - " << key1.chr() << key1.index() << "-" << key2.chr() << key2.index() << std::endl;
+      std::cout << "updateActiveSets - factor to remove: " << key1.chr() << key1.index() << "-" << key2.chr() << key2.index() << std::endl;
 
       active_factors_.erase(it);
     }
@@ -296,7 +299,7 @@ void GtsamTransformer::finish() {
     // Incremental update
     ready_data_queue_.emplace(true,
                               true,
-                              gtsam::serialize(createFactorGraph(add_factors_)),
+                              gtsam::serialize(createFactorGraph(add_factors_, true)),
                               createDeletedFactorsIndicesVec(del_factors_),
                               add_states_,
                               del_states_,
@@ -306,7 +309,7 @@ void GtsamTransformer::finish() {
     // Batch update
     ready_data_queue_.emplace(true,
                               false,
-                              gtsam::serialize(createFactorGraph(active_factors_)),
+                              gtsam::serialize(createFactorGraph(active_factors_, false)),
                               createDeletedFactorsIndicesVec(del_factors_),
                               add_states_,
                               del_states_,
@@ -343,7 +346,15 @@ std::string GtsamTransformer::setToString(const std::set<gtsam::Key> &set) const
   return ss.str();
 }
 
-gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std::pair<std::string, FactorType>> ser_factors_vec) {
+gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std::pair<std::string, FactorType>> ser_factors_vec,
+                                                                bool is_incremental) {
+  // In use only in batch mode (not incremental)
+  std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> new_active_factors;
+
+  if (!is_incremental) {
+    current_index_ = 0;
+    factor_indecies_dict_.clear();
+  }
   gtsam::NonlinearFactorGraph graph;
   for (const auto &it: ser_factors_vec) {
     switch (it.second) {
@@ -357,6 +368,16 @@ gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std:
       case FactorType::BETWEEN: {
         gtsam::BetweenFactor<gtsam::Pose3> between_factor;
         gtsam::deserialize(it.first, between_factor);
+        if (!is_incremental && (del_factors_.size() > 0 || del_states_.size() > 0)) {
+          gtsam::Symbol first_sym(between_factor.keys().at(0));
+          gtsam::Symbol second_sym(between_factor.keys().at(1));
+          if ((std::find(del_factors_.begin(), del_factors_.end(), std::make_pair(first_sym.key(), second_sym.key())) != del_factors_.end())
+              || (del_states_.find(first_sym.key()) != del_states_.end()) || (del_states_.find(second_sym.key()) != del_states_.end())) {
+            break;
+          } else {
+            new_active_factors[std::make_pair(first_sym.key(), second_sym.key())] = it;
+          }
+        }
         graph.push_back(between_factor);
         factor_indecies_dict_[std::make_pair(between_factor.keys()[0], between_factor.keys()[1])] = current_index_++;
         break;
@@ -364,6 +385,16 @@ gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std:
       case FactorType::MONO: {
         gtsam::GenericProjectionFactor<gtsam::Pose3, gtsam::Point3, gtsam::Cal3_S2> mono_factor;
         gtsam::deserialize(it.first, mono_factor);
+        if (!is_incremental && (del_factors_.size() > 0 || del_states_.size() > 0)) {
+          gtsam::Symbol first_sym(mono_factor.keys().at(0));
+          gtsam::Symbol second_sym(mono_factor.keys().at(1));
+          if ((std::find(del_factors_.begin(), del_factors_.end(), std::make_pair(first_sym.key(), second_sym.key())) != del_factors_.end())
+              || (del_states_.find(first_sym.key()) != del_states_.end()) || (del_states_.find(second_sym.key()) != del_states_.end())) {
+            break;
+          } else {
+            new_active_factors[std::make_pair(first_sym.key(), second_sym.key())] = it;
+          }
+        }
         graph.push_back(mono_factor);
         factor_indecies_dict_[std::make_pair(mono_factor.keys()[0], mono_factor.keys()[1])] = current_index_++;
         break;
@@ -371,6 +402,16 @@ gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std:
       case FactorType::STEREO: {
         gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3> stereo_factor;
         gtsam::deserialize(it.first, stereo_factor);
+        if (!is_incremental && (del_factors_.size() > 0 || del_states_.size() > 0)) {
+          gtsam::Symbol first_sym(stereo_factor.keys().at(0));
+          gtsam::Symbol second_sym(stereo_factor.keys().at(1));
+          if ((std::find(del_factors_.begin(), del_factors_.end(), std::make_pair(first_sym.key(), second_sym.key())) != del_factors_.end())
+              || (del_states_.find(first_sym.key()) != del_states_.end()) || (del_states_.find(second_sym.key()) != del_states_.end())) {
+            break;
+          } else {
+            new_active_factors[std::make_pair(first_sym.key(), second_sym.key())] = it;
+          }
+        }
         graph.push_back(stereo_factor);
         factor_indecies_dict_[std::make_pair(stereo_factor.keys()[0], stereo_factor.keys()[1])] = current_index_++;
         break;
@@ -378,16 +419,26 @@ gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std:
     }
   }
   std::cout << "createFactorGraph - size: " << graph.size() << std::endl;
+  if (!is_incremental) {
+    active_factors_ = new_active_factors;
+
+    for (const auto &it: del_states_) {
+      if (values_.find(it) != values_.end()) {
+        values_.erase(it);
+      }
+    }
+  }
   return graph;
 }
 
 gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(map<pair<gtsam::Key, gtsam::Key>,
-                                                                    pair<string, ORB_SLAM2::GtsamTransformer::FactorType>> ser_factors_map) {
+                                                                    pair<string, ORB_SLAM2::GtsamTransformer::FactorType>> ser_factors_map,
+                                                                bool is_incremental) {
   std::vector<std::pair<std::string, FactorType>> ser_factors_vec;
   for (const auto &it: ser_factors_map)
     ser_factors_vec.push_back(it.second);
 
-  return createFactorGraph(ser_factors_vec);
+  return createFactorGraph(ser_factors_vec, is_incremental);
 }
 
 std::vector<size_t> GtsamTransformer::createDeletedFactorsIndicesVec(std::vector<std::pair<gtsam::Key, gtsam::Key>> &del_factors) {

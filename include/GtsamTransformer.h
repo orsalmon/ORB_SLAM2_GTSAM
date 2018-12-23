@@ -108,8 +108,9 @@ class GtsamTransformer {
   void exportValuesFromMap(std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> &map,
                            std::vector<std::pair<std::string, FactorType>> &output);
   std::string setToString(const std::set<gtsam::Key> &set) const;
-  gtsam::NonlinearFactorGraph createFactorGraph(std::vector<std::pair<std::string, FactorType>> ser_factors_vec);
-  gtsam::NonlinearFactorGraph createFactorGraph(std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> ser_factors_map);
+  gtsam::NonlinearFactorGraph createFactorGraph(std::vector<std::pair<std::string, FactorType>> ser_factors_vec, bool is_incremental);
+  gtsam::NonlinearFactorGraph createFactorGraph(std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> ser_factors_map,
+                                                bool is_incremental);
   std::vector<size_t> createDeletedFactorsIndicesVec(std::vector<std::pair<gtsam::Key, gtsam::Key>> &del_factors);
   // Private implementation of std::set_difference
   std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> getDifferenceSet(std::map<std::pair<gtsam::Key, gtsam::Key>,
@@ -122,7 +123,6 @@ class GtsamTransformer {
   std::vector<std::pair<gtsam::Key, gtsam::Key>> getIntersectionVec(std::map<std::pair<gtsam::Key, gtsam::Key>,
                                                                              std::pair<std::string, FactorType>> &set_A,
                                                                     std::vector<std::pair<gtsam::Key, gtsam::Key>> &vec_B);
-
 
   std::queue<std::tuple<bool,
                         bool,
