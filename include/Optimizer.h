@@ -55,6 +55,9 @@ class Optimizer {
   // if bFixScale is true, optimize SE3 (stereo,rgbd), Sim3 otherwise (mono)
   static int OptimizeSim3(KeyFrame *pKF1, KeyFrame *pKF2, std::vector<MapPoint *> &vpMatches1,
                           g2o::Sim3 &g2oS12, const float th2, const bool bFixScale);
+
+ private:
+  static void printActiveGraph(const vector<KeyFrame *> &vpKFs, const vector<MapPoint *> &vpMP);
 };
 
 } //namespace ORB_SLAM

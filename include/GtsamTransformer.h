@@ -73,36 +73,34 @@ class GtsamTransformer {
    * 1. Boolean indicates if there is a new data or not
    * 2. Optional Boolean indicates if the data is incremental update
    * 3. Optional string contains graph of the added factors since the last call to the function (serialized)
-   * 4. Optional vector contains the pair's key (keyframe-landmark) of the factors had removed since the last call to the function
-   * 5. Optional set contains the keys of the added states (keyframes/landmarks) since the last call to the function
-   * 6. Optional set contains the keys of the removed states (keyframes/landmarks) since the last call to the function
-   * 7. Optional GTSAM values object contains the values of the added states since the last call to the function (serialized)
+   * 4. Optional vector contains the indices of the factors had removed since the last call to the function
+   * 5. Optional GTSAM KeyList contains the keys of the added states (keyframes/landmarks) since the last call to the function
+   * 6. Optional GTSAM KeyList contains the keys of the removed states (keyframes/landmarks) since the last call to the function
+   * 7. Optional GTSAM Values object contains the values of the added states since the last call to the function (serialized)
    * 8. Optional tuple of the most recent keyframe symbol (serialized), its timestamp, and its Pose3 (serialized)
    */
   std::tuple<bool,
              boost::optional<bool>,
              boost::optional<std::string>,
              boost::optional<std::vector<size_t>>,
-             boost::optional<std::set<gtsam::Key>>,
-             boost::optional<std::set<gtsam::Key>>,
+             boost::optional<const gtsam::KeyList>,
+             boost::optional<const gtsam::KeyList>,
              boost::optional<std::string>,
              boost::optional<std::tuple<std::string, double, std::string>>> checkForNewData();
 
  protected:
-  void addKeyFrame(KeyFrame *pKF);
-  void addLandmark(MapPoint *pMP);
-  void addMonoMeasurement(KeyFrame *pKF, MapPoint *pMP, Eigen::Matrix<double, 2, 1> &obs, const float inv_sigma_2);
-  void addStereoMeasurement(KeyFrame *pKF, MapPoint *pMP, Eigen::Matrix<double, 3, 1> &obs, const float inv_sigma_2);
-  void setKeyFramePose(KeyFrame *pKF, g2o::SE3Quat pose);
-  void setLandmarkPose(MapPoint *pMP, g2o::Vector3d position);
-  void handleKeyframe(KeyFrame *pKF, bool is_bad);
-  void handleLandmark(MapPoint *pMP, bool is_bad);
-  void removeFactor(KeyFrame *pKF, MapPoint *pMP);
-  bool start();
-  void finish();
+  void transformGraphToGtsam(const std::vector<KeyFrame *> &vpKFs, const std::vector<MapPoint *> &vpMP);
 
  private:
-  void updateActiveSets();
+  bool start();
+  void finish(bool is_incremental);
+  void updateKeyFrame(KeyFrame *pKF, bool add_between_factor = false);
+  void updateLandmark(MapPoint *pMP);
+  void updateObservations(MapPoint *pMP, const std::map<KeyFrame *, size_t> &observations);
+  void addMonoMeasurement(KeyFrame *pKF, MapPoint *pMP, Eigen::Matrix<double, 2, 1> &obs, const float inv_sigma_2);
+  void addStereoMeasurement(KeyFrame *pKF, MapPoint *pMP, Eigen::Matrix<double, 3, 1> &obs, const float inv_sigma_2);
+  void calculateDiffrencesBetweenValueSets();
+  void calculateDiffrencesBetweenFactorSets();
   void exportKeysFromMap(std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> &map,
                          std::vector<std::pair<gtsam::Key, gtsam::Key>> &output);
   void exportValuesFromMap(std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> &map,
@@ -119,29 +117,26 @@ class GtsamTransformer {
                                                                                                    std::map<std::pair<gtsam::Key, gtsam::Key>,
                                                                                                             std::pair<std::string,
                                                                                                                       FactorType>> &set_B);
-  // Private implementation of std::set_intersection
-  std::vector<std::pair<gtsam::Key, gtsam::Key>> getIntersectionVec(std::map<std::pair<gtsam::Key, gtsam::Key>,
-                                                                             std::pair<std::string, FactorType>> &set_A,
-                                                                    std::vector<std::pair<gtsam::Key, gtsam::Key>> &vec_B);
+  gtsam::KeyList getDifferenceKeyList(const gtsam::KeyList &list_A, const gtsam::KeyList &list_B);
 
   std::queue<std::tuple<bool,
                         bool,
                         std::string,
                         std::vector<size_t>,
-                        std::set<gtsam::Key>,
-                        std::set<gtsam::Key>,
+                        const gtsam::KeyList,
+                        const gtsam::KeyList,
                         std::string,
                         std::tuple<std::string, double, std::string>>> ready_data_queue_;
 
-  gtsam::Values values_, add_values_;
+  gtsam::Values session_values_, last_session_values_;
   gtsam::Cal3_S2Stereo::shared_ptr cam_params_stereo_;
   gtsam::Cal3_S2::shared_ptr cam_params_mono_;
   gtsam::noiseModel::Diagonal::shared_ptr between_factors_prior_;
   bool is_cam_params_initialized_ = false;
   std::vector<std::pair<std::string, FactorType>> add_factors_;
   std::vector<std::pair<gtsam::Key, gtsam::Key>> del_factors_;
-  std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> active_factors_, session_factors_;
-  std::set<gtsam::Key> active_states_, del_states_, add_states_, session_states_;
+  std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> session_factors_, last_session_factors_;
+  gtsam::KeyList del_states_, add_states_;
   std::tuple<std::string, double, std::string> recent_kf_;
   std::map<std::pair<gtsam::Key, gtsam::Key>, size_t> factor_indecies_dict_;
   size_t current_index_ = 0;

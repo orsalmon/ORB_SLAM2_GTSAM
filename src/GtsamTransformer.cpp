@@ -27,62 +27,15 @@ GtsamTransformer::GtsamTransformer() {
   between_factors_prior_ = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e9, 1e9, 1e9, 1e9, 1e9, 1e9));
 }
 
-void GtsamTransformer::addKeyFrame(ORB_SLAM2::KeyFrame *pKF) {
-  logger_->debug("addKeyFrame - pKF->mnId: {}", pKF->mnId);
-  // Create unique symbol
-  gtsam::Symbol sym('x', pKF->mnId);
-  // Create camera parameters
-  if (!is_cam_params_initialized_) {
-    cam_params_stereo_.reset(new gtsam::Cal3_S2Stereo(pKF->fx, pKF->fy, 0.0, pKF->cx, pKF->cy, pKF->mb));
-    cam_params_mono_.reset(new gtsam::Cal3_S2(cam_params_stereo_->calibration()));
-    is_cam_params_initialized_ = true;
-  }
-  // Create camera pose3
-  cv::Mat T_cv = pKF->GetPose();
-  Eigen::Map<Eigen::Matrix<float, 4, 4, Eigen::RowMajor>> T_gtsam(T_cv.ptr<float>(), T_cv.rows, T_cv.cols);
-  gtsam::Pose3 left_cam_pose(T_gtsam.cast<double>());
-  gtsam::StereoCamera stereo_cam(left_cam_pose, cam_params_stereo_); // TODO: currently not used because adding factors issue
-
-  if (values_.exists(sym.key()))
-    values_.update(sym.key(), left_cam_pose);
-  else {
-    values_.insert(sym.key(), left_cam_pose);
-    add_values_.insert(sym.key(), left_cam_pose);
-  }
-
-  if (pKF->mTimeStamp > std::get<1>(recent_kf_)) {
-    recent_kf_ = std::make_tuple(gtsam::serialize(sym), pKF->mTimeStamp, gtsam::serialize(left_cam_pose));
-  }
-
-  if (pKF->mnId == 0) {
-    // Adding prior factor for x0
-    auto prior_noise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6));
-    gtsam::PriorFactor<gtsam::Pose3> prior_factor(gtsam::Symbol('x', 0), left_cam_pose, prior_noise);
-    session_factors_[std::make_pair(sym.key(), sym.key())] = std::make_pair(gtsam::serialize(prior_factor), FactorType::PRIOR);
-  }
-}
-
-void GtsamTransformer::addLandmark(ORB_SLAM2::MapPoint *pMP) {
-  logger_->debug("addLandmark - pMP->mnId: {}", pMP->mnId);
-  // Create unique symbol
-  gtsam::Symbol sym('l', pMP->mnId);
-  // Create landmark position
-  cv::Mat p_cv = pMP->GetWorldPos();
-  gtsam::Point3 p_gtsam(p_cv.at<float>(0), p_cv.at<float>(1), p_cv.at<float>(2));
-
-  if (values_.exists(sym.key()))
-    values_.update(sym.key(), p_gtsam);
-  else {
-    values_.insert(sym.key(), p_gtsam);
-    add_values_.insert(sym.key(), p_gtsam);
-  }
-}
-
 void GtsamTransformer::addMonoMeasurement(ORB_SLAM2::KeyFrame *pKF,
                                           ORB_SLAM2::MapPoint *pMP,
                                           Eigen::Matrix<double, 2, 1> &obs,
                                           const float inv_sigma_2) {
   logger_->debug("addMonoMeasurement - pKF->mnId: {}, pMP->mnId: {}", pKF->mnId, pMP->mnId);
+  if (!is_cam_params_initialized_) {
+    std::cout << "addMonoMeasurement - camera params has not been initialized!" << std::endl;
+    exit(-2);
+  }
   // Create both symbols
   gtsam::Symbol keyframe_sym('x', pKF->mnId);
   gtsam::Symbol landmark_sym('l', pMP->mnId);
@@ -105,6 +58,10 @@ void GtsamTransformer::addStereoMeasurement(ORB_SLAM2::KeyFrame *pKF,
                                             Eigen::Matrix<double, 3, 1> &obs,
                                             const float inv_sigma_2) {
   logger_->debug("addStereoMeasurement - pKF->mnId: {}, pMP->mnId: {}", pKF->mnId, pMP->mnId);
+  if (!is_cam_params_initialized_) {
+    std::cout << "addStereoMeasurement - camera params has not been initialized!" << std::endl;
+    exit(-2);
+  }
   // Create both symbols
   gtsam::Symbol keyframe_sym('x', pKF->mnId);
   gtsam::Symbol landmark_sym('l', pMP->mnId);
@@ -122,54 +79,12 @@ void GtsamTransformer::addStereoMeasurement(ORB_SLAM2::KeyFrame *pKF,
   session_factors_[std::make_pair(keyframe_sym.key(), landmark_sym.key())] = std::make_pair(gtsam::serialize(factor), FactorType::STEREO);
 }
 
-void GtsamTransformer::setKeyFramePose(ORB_SLAM2::KeyFrame *pKF, g2o::SE3Quat pose) {
-  logger_->debug("setKeyFramePose - pKF->mnId: {}", pKF->mnId);
-  // Create keyframe symbol
-  gtsam::Symbol sym('x', pKF->mnId);
-
-  // Create pose
-  cv::Mat T_cv = Converter::toCvMat(pose);
-  Eigen::Map<Eigen::Matrix<float, 4, 4, Eigen::RowMajor>> T_gtsam(T_cv.ptr<float>(), T_cv.rows, T_cv.cols);
-  gtsam::Pose3 left_cam_pose(T_gtsam.cast<double>());
-  gtsam::StereoCamera stereo_cam(left_cam_pose, cam_params_stereo_);
-
-  values_.update(sym.key(), left_cam_pose);
-  if (add_values_.exists(sym.key()))
-    add_values_.update(sym.key(), left_cam_pose);
-
-  // Creating between factors
-  if (pKF->mnId != 0) {
-    gtsam::Symbol sym_before('x', pKF->mnId - 1);
-    if (values_.exists(sym_before.key())) {
-      gtsam::Pose3 relative_pose = left_cam_pose.between(values_.at<gtsam::Pose3>(sym_before.key())).between(gtsam::Pose3());
-      gtsam::BetweenFactor<gtsam::Pose3> between_factor(sym_before, sym, relative_pose, between_factors_prior_);
-      session_factors_[std::make_pair(sym_before.key(), sym.key())] = std::make_pair(gtsam::serialize(between_factor), FactorType::BETWEEN);
-    }
-  }
-
-  if (gtsam::serialize(sym) == std::get<0>(recent_kf_))
-    std::get<2>(recent_kf_) = gtsam::serialize(left_cam_pose);
-}
-
-void GtsamTransformer::setLandmarkPose(ORB_SLAM2::MapPoint *pMP, g2o::Vector3d position) {
-  logger_->debug("setLandmarkPose - pMP->mnId: {}", pMP->mnId);
-  // Create keyframe symbol
-  gtsam::Symbol sym('l', pMP->mnId);
-
-  // Create position
-  gtsam::Point3 p_gtsam(position(0), position(1), position(2));
-
-  values_.update(sym.key(), p_gtsam);
-  if (add_values_.exists(sym.key()))
-    add_values_.update(sym.key(), p_gtsam);
-}
-
 std::tuple<bool,
            boost::optional<bool>,
            boost::optional<std::string>,
            boost::optional<std::vector<size_t>>,
-           boost::optional<std::set<gtsam::Key>>,
-           boost::optional<std::set<gtsam::Key>>,
+           boost::optional<const gtsam::KeyList>,
+           boost::optional<const gtsam::KeyList>,
            boost::optional<std::string>,
            boost::optional<std::tuple<std::string, double, std::string>>> GtsamTransformer::checkForNewData() {
   if (ready_data_queue_.empty()) {
@@ -189,96 +104,17 @@ std::tuple<bool,
   }
 }
 
-void GtsamTransformer::handleKeyframe(ORB_SLAM2::KeyFrame *pKF, bool is_bad) {
-  is_bad ? del_states_.insert(gtsam::Symbol('x', pKF->mnId)) : session_states_.insert(gtsam::Symbol('x', pKF->mnId));
-}
-
-void GtsamTransformer::handleLandmark(ORB_SLAM2::MapPoint *pMP, bool is_bad) {
-  is_bad ? del_states_.insert(gtsam::Symbol('l', pMP->mnId)) : session_states_.insert(gtsam::Symbol('l', pMP->mnId));
-}
-
-void GtsamTransformer::removeFactor(ORB_SLAM2::KeyFrame *pKF, ORB_SLAM2::MapPoint *pMP) {
-  gtsam::Symbol keyframe_sym('x', pKF->mnId);
-  gtsam::Symbol landmark_sym('l', pMP->mnId);
-  del_factors_.emplace_back(keyframe_sym.key(), landmark_sym.key());
-  logger_->debug("removeFactor - pKF->mnId: {}, pMP->mnId: {}", pKF->mnId, pMP->mnId);
-  std::cout << "removeFactor - " << keyframe_sym.chr() << keyframe_sym.index() << "-" << landmark_sym.chr() << landmark_sym.index() << std::endl;
-}
-
-void GtsamTransformer::updateActiveSets() {
-  // Handle added states
-  if (active_states_.empty()) {
-    add_states_ = session_states_;
-  } else {
-    std::set_difference(session_states_.begin(),
-                        session_states_.end(),
-                        active_states_.begin(),
-                        active_states_.end(),
-                        std::inserter(add_states_, add_states_.begin()));
-  }
-  active_states_.insert(add_states_.begin(), add_states_.end());
-
-  // Handle deleted states
-  std::set<gtsam::Key> new_del_states;
-  std::set_intersection(active_states_.begin(),
-                        active_states_.end(),
-                        del_states_.begin(),
-                        del_states_.end(),
-                        std::inserter(new_del_states, new_del_states.begin()));
-  del_states_ = new_del_states;
-
-  // Update active set
-  if (!del_states_.empty()) {
-    for (const auto &it: del_states_) {
-      gtsam::Symbol key1(it);
-      std::cout << "updateActiveSets - state to remove: " << key1.chr() << key1.index() << std::endl;
-
-      active_states_.erase(it);
-    }
-  }
-
-  logger_->debug("updateActiveSets - add_states: {}", setToString(add_states_));
-  logger_->debug("updateActiveSets - del_states: {}", setToString(del_states_));
-
-  // Handle added factors
-  std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> add_factors_map;
-  if (active_factors_.empty()) {
-    add_factors_map = session_factors_;
-    exportValuesFromMap(add_factors_map, add_factors_);
-  } else {
-    add_factors_map = getDifferenceSet(session_factors_, active_factors_);
-    exportValuesFromMap(add_factors_map, add_factors_);
-  }
-  active_factors_.insert(add_factors_map.begin(), add_factors_map.end());
-
-  // Handle deleted factors
-  del_factors_ = getIntersectionVec(active_factors_, del_factors_);
-
-  // Update active factors
-  if (!del_factors_.empty()) {
-    for (const auto &it: del_factors_) {
-      gtsam::Symbol key1(it.first);
-      gtsam::Symbol key2(it.second);
-      std::cout << "updateActiveSets - factor to remove: " << key1.chr() << key1.index() << "-" << key2.chr() << key2.index() << std::endl;
-
-      active_factors_.erase(it);
-    }
-  }
-}
-
 bool GtsamTransformer::start() {
   std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
   if (lock.owns_lock()) {
     logger_->info("start - new recovering session.");
     add_states_.clear();
     del_states_.clear();
-    session_states_.clear();
+    session_values_.clear();
 
     add_factors_.clear();
     del_factors_.clear();
     session_factors_.clear();
-
-    add_values_.clear();
     return true;
   } else {
     logger_->warn("start - can't own mutex. returns");
@@ -286,42 +122,47 @@ bool GtsamTransformer::start() {
   return false;
 }
 
-void GtsamTransformer::finish() {
+void GtsamTransformer::finish(bool is_incremental) {
   std::unique_lock<std::mutex> *lock;
   do {
     lock = new std::unique_lock<std::mutex>(mutex_, std::try_to_lock);
   } while (!lock->owns_lock());
   logger_->info("finish - ending recovering session. new_optimized_data is now available");
-  logger_->info("finish - active states set size: {}", active_states_.size());
-  logger_->info("finish - active factors vector size: {}", active_factors_.size());
-  updateActiveSets();
-  if (del_states_.size() == 0) {
+  logger_->info("finish - active states set size: {}", session_values_.size());
+  logger_->info("finish - active factors vector size: {}", session_factors_.size());
+  if (is_incremental) {
     // Incremental update
+    auto incremental_factor_graph = createFactorGraph(add_factors_, true);
     ready_data_queue_.emplace(true,
                               true,
-                              gtsam::serialize(createFactorGraph(add_factors_, true)),
+                              gtsam::serialize(incremental_factor_graph),
                               createDeletedFactorsIndicesVec(del_factors_),
                               add_states_,
                               del_states_,
-                              gtsam::serialize(add_values_),
+                              gtsam::serialize(session_values_),
                               recent_kf_);
   } else {
     // Batch update
+    auto active_factor_graph = createFactorGraph(session_factors_, false);
     ready_data_queue_.emplace(true,
                               false,
-                              gtsam::serialize(createFactorGraph(active_factors_, false)),
+                              gtsam::serialize(active_factor_graph),
                               createDeletedFactorsIndicesVec(del_factors_),
                               add_states_,
                               del_states_,
-                              gtsam::serialize(values_),
+                              gtsam::serialize(session_values_),
                               recent_kf_);
   }
   logger_->info("finish - ready_data_queue.size: {}", ready_data_queue_.size());
 
-  std::cout << "finish - active_factors.size: " << active_factors_.size() << " session_factors.size: " << session_factors_.size()
+  std::cout << "finish - session_factors.size: " << session_factors_.size() << " last_session_factors.size: " << last_session_factors_.size()
             << " add_factors.size: " << add_factors_.size()
             << " del_factors.size: " << del_factors_.size() << " add_states.size: " << add_states_.size() << " del_states.size: "
-            << del_states_.size() << " add_values.size: " << add_values_.size() << std::endl;
+            << del_states_.size() << " values.size: " << session_values_.size() << " last_values.size: " << last_session_values_.size() << std::endl;
+
+  last_session_values_ = session_values_;
+  last_session_factors_ = session_factors_;
+
   delete lock;
 }
 
@@ -372,7 +213,8 @@ gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std:
           gtsam::Symbol first_sym(between_factor.keys().at(0));
           gtsam::Symbol second_sym(between_factor.keys().at(1));
           if ((std::find(del_factors_.begin(), del_factors_.end(), std::make_pair(first_sym.key(), second_sym.key())) != del_factors_.end())
-              || (del_states_.find(first_sym.key()) != del_states_.end()) || (del_states_.find(second_sym.key()) != del_states_.end())) {
+              || (std::find(del_states_.begin(), del_states_.end(), first_sym.key()) != del_states_.end())
+              || (std::find(del_states_.begin(), del_states_.end(), second_sym.key()) != del_states_.end())) {
             break;
           } else {
             new_active_factors[std::make_pair(first_sym.key(), second_sym.key())] = it;
@@ -389,7 +231,8 @@ gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std:
           gtsam::Symbol first_sym(mono_factor.keys().at(0));
           gtsam::Symbol second_sym(mono_factor.keys().at(1));
           if ((std::find(del_factors_.begin(), del_factors_.end(), std::make_pair(first_sym.key(), second_sym.key())) != del_factors_.end())
-              || (del_states_.find(first_sym.key()) != del_states_.end()) || (del_states_.find(second_sym.key()) != del_states_.end())) {
+              || (std::find(del_states_.begin(), del_states_.end(), first_sym.key()) != del_states_.end())
+              || (std::find(del_states_.begin(), del_states_.end(), second_sym.key()) != del_states_.end())) {
             break;
           } else {
             new_active_factors[std::make_pair(first_sym.key(), second_sym.key())] = it;
@@ -406,7 +249,8 @@ gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std:
           gtsam::Symbol first_sym(stereo_factor.keys().at(0));
           gtsam::Symbol second_sym(stereo_factor.keys().at(1));
           if ((std::find(del_factors_.begin(), del_factors_.end(), std::make_pair(first_sym.key(), second_sym.key())) != del_factors_.end())
-              || (del_states_.find(first_sym.key()) != del_states_.end()) || (del_states_.find(second_sym.key()) != del_states_.end())) {
+              || (std::find(del_states_.begin(), del_states_.end(), first_sym.key()) != del_states_.end())
+              || (std::find(del_states_.begin(), del_states_.end(), second_sym.key()) != del_states_.end())) {
             break;
           } else {
             new_active_factors[std::make_pair(first_sym.key(), second_sym.key())] = it;
@@ -420,11 +264,11 @@ gtsam::NonlinearFactorGraph GtsamTransformer::createFactorGraph(std::vector<std:
   }
   std::cout << "createFactorGraph - size: " << graph.size() << std::endl;
   if (!is_incremental) {
-    active_factors_ = new_active_factors;
+    session_factors_ = new_active_factors;
 
     for (const auto &it: del_states_) {
-      if (values_.find(it) != values_.end()) {
-        values_.erase(it);
+      if (session_values_.find(it) != session_values_.end()) {
+        session_values_.erase(it);
       }
     }
   }
@@ -472,15 +316,144 @@ map<pair<gtsam::Key, gtsam::Key>, pair<string, GtsamTransformer::FactorType>> Gt
   return diff_set;
 }
 
-std::vector<std::pair<gtsam::Key, gtsam::Key>> GtsamTransformer::getIntersectionVec(std::map<std::pair<gtsam::Key, gtsam::Key>,
-                                                                                             std::pair<std::string, FactorType>> &set_A,
-                                                                                    std::vector<std::pair<gtsam::Key, gtsam::Key>> &vec_B) {
-  std::vector<std::pair<gtsam::Key, gtsam::Key>> inter_vec;
-  for (const auto &it_B: vec_B) {
-    if (set_A.find(it_B) != set_A.end()) {
-      inter_vec.push_back(it_B);
+void GtsamTransformer::transformGraphToGtsam(const vector<ORB_SLAM2::KeyFrame *> &vpKFs, const vector<ORB_SLAM2::MapPoint *> &vpMP) {
+  if (!start())
+    return;
+  for (const auto &pKF: vpKFs) {
+    if (pKF->isBad())
+      continue;
+    updateKeyFrame(pKF, true);
+  }
+  for (const auto &pMP: vpMP) {
+    if (pMP->isBad())
+      continue;
+    updateLandmark(pMP);
+    const std::map<KeyFrame *, size_t> observations = pMP->GetObservations();
+    updateObservations(pMP, observations);
+  }
+  calculateDiffrencesBetweenValueSets();
+  if (!del_states_.empty()) {
+    finish(false);
+    return;
+  }
+  calculateDiffrencesBetweenFactorSets();
+  finish(true);
+}
+
+void GtsamTransformer::updateKeyFrame(ORB_SLAM2::KeyFrame *pKF, bool add_between_factor) {
+  // Create keyframe symbol
+  gtsam::Symbol sym('x', pKF->mnId);
+
+  // Create camera parameters
+  if (!is_cam_params_initialized_) {
+    cam_params_stereo_.reset(new gtsam::Cal3_S2Stereo(pKF->fx, pKF->fy, 0.0, pKF->cx, pKF->cy, pKF->mb));
+    cam_params_mono_.reset(new gtsam::Cal3_S2(cam_params_stereo_->calibration()));
+    is_cam_params_initialized_ = true;
+  }
+
+  // Create pose
+  cv::Mat T_cv = pKF->GetPose();
+  Eigen::Map<Eigen::Matrix<float, 4, 4, Eigen::RowMajor>> T_gtsam(T_cv.ptr<float>(), T_cv.rows, T_cv.cols);
+  gtsam::Pose3 left_cam_pose(T_gtsam.cast<double>());
+  gtsam::StereoCamera stereo_cam(left_cam_pose, cam_params_stereo_);
+
+  session_values_.insert(sym.key(), stereo_cam.pose());
+
+  // Adding prior factor for x0
+  if (pKF->mnId == 0) {
+    auto prior_noise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6));
+    gtsam::PriorFactor<gtsam::Pose3> prior_factor(gtsam::Symbol('x', 0), stereo_cam.pose(), prior_noise);
+    session_factors_[std::make_pair(sym.key(), sym.key())] = std::make_pair(gtsam::serialize(prior_factor), FactorType::PRIOR);
+  }
+
+  // Adding between factor
+  if (add_between_factor) {
+    if (pKF->mnId != 0) {
+      gtsam::Symbol sym_before('x', pKF->mnId - 1);
+      if (session_values_.exists(sym_before.key())) {
+        gtsam::Pose3 relative_pose = stereo_cam.pose().between(session_values_.at<gtsam::Pose3>(sym_before.key())).between(gtsam::Pose3());
+        gtsam::BetweenFactor<gtsam::Pose3> between_factor(sym_before, sym, relative_pose, between_factors_prior_);
+        session_factors_[std::make_pair(sym_before.key(), sym.key())] = std::make_pair(gtsam::serialize(between_factor), FactorType::BETWEEN);
+      }
     }
   }
-  return inter_vec;
+
+  // Update most recent keyframe
+  if ((pKF->mTimeStamp > std::get<1>(recent_kf_)) || (pKF->mnId == 0)) {
+    recent_kf_ = std::make_tuple(gtsam::serialize(sym), pKF->mTimeStamp, gtsam::serialize(stereo_cam.pose()));
+  }
+}
+
+void GtsamTransformer::updateLandmark(ORB_SLAM2::MapPoint *pMP) {
+  // Create landmark symbol
+  gtsam::Symbol sym('l', pMP->mnId);
+
+  // Create landmark position
+  cv::Mat p_cv = pMP->GetWorldPos();
+  gtsam::Point3 p_gtsam(p_cv.at<float>(0), p_cv.at<float>(1), p_cv.at<float>(2));
+
+  session_values_.insert(sym.key(), p_gtsam);
+}
+
+void GtsamTransformer::updateObservations(MapPoint *pMP, const map<ORB_SLAM2::KeyFrame *, size_t> &observations) {
+  for (const auto &mit: observations) {
+    KeyFrame *pKFi = mit.first;
+    if (pKFi->isBad())
+      continue;
+    const cv::KeyPoint &kpUn = pKFi->mvKeysUn[mit.second];
+    // Monocular observation
+    if (pKFi->mvuRight[mit.second] < 0) {
+      Eigen::Matrix<double, 2, 1> obs;
+      obs << kpUn.pt.x, kpUn.pt.y;
+      const float &invSigma2 = pKFi->mvInvLevelSigma2[kpUn.octave];
+      addMonoMeasurement(pKFi, pMP, obs, invSigma2);
+    } else // Stereo observation
+    {
+      Eigen::Matrix<double, 3, 1> obs;
+      const float kp_ur = pKFi->mvuRight[mit.second];
+      obs << kpUn.pt.x, kpUn.pt.y, kp_ur;
+      const float &invSigma2 = pKFi->mvInvLevelSigma2[kpUn.octave];
+      addStereoMeasurement(pKFi, pMP, obs, invSigma2);
+    }
+  }
+}
+
+void GtsamTransformer::calculateDiffrencesBetweenValueSets() {
+  // Handle added states
+  if (last_session_values_.empty()) {
+    add_states_ = session_values_.keys();
+  } else {
+    add_states_ = getDifferenceKeyList(session_values_.keys(), last_session_values_.keys());
+  }
+
+  // Handle deleted states
+  del_states_ = getDifferenceKeyList(last_session_values_.keys(), session_values_.keys());
+}
+
+void GtsamTransformer::calculateDiffrencesBetweenFactorSets() {
+  // Handle added factors
+  std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> add_factors_map;
+  if (last_session_factors_.empty()) {
+    add_factors_map = session_factors_;
+    exportValuesFromMap(add_factors_map, add_factors_);
+  } else {
+    add_factors_map = getDifferenceSet(session_factors_, last_session_factors_);
+    exportValuesFromMap(add_factors_map, add_factors_);
+  }
+
+  // Handle deleted factors
+  std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>>
+      del_factors_map = getDifferenceSet(last_session_factors_, session_factors_);
+  exportKeysFromMap(del_factors_map, del_factors_);
+}
+
+gtsam::KeyList GtsamTransformer::getDifferenceKeyList(const gtsam::KeyList &list_A, const gtsam::KeyList &list_B) {
+  gtsam::KeyList diff_list;
+  for (const auto &it_A: list_A) {
+    if (std::find(list_B.begin(), list_B.end(), it_A) == list_B.end()) {
+      diff_list.push_back(it_A);
+    }
+  }
+  return diff_list;
 }
 }
