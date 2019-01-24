@@ -64,6 +64,12 @@ class GtsamTransformer {
     MONO,
     STEREO
   };
+ public:
+  // GTSAM Transformer Update Type
+  enum UpdateType{
+    BATCH=0,
+    INCREMENTAL=1
+  };
 
  public:
   GtsamTransformer();
@@ -76,7 +82,7 @@ class GtsamTransformer {
    * 4. Optional vector contains the indices of the factors had removed since the last call to the function
    * 5. Optional GTSAM KeyList contains the keys of the added states (keyframes/landmarks) since the last call to the function
    * 6. Optional GTSAM KeyList contains the keys of the removed states (keyframes/landmarks) since the last call to the function
-   * 7. Optional GTSAM Values object contains the values of the added states since the last call to the function (serialized)
+   * 7. Optional GTSAM Values object contains the values of entire graph (serialized)
    * 8. Optional tuple of the most recent keyframe symbol (serialized), its timestamp, and its Pose3 (serialized)
    */
   std::tuple<bool,
@@ -88,12 +94,14 @@ class GtsamTransformer {
              boost::optional<std::string>,
              boost::optional<std::tuple<std::string, double, std::string>>> checkForNewData();
 
+  void setUpdateType(const UpdateType update_type);
+
  protected:
   void transformGraphToGtsam(const std::vector<KeyFrame *> &vpKFs, const std::vector<MapPoint *> &vpMP);
 
  private:
   bool start();
-  void finish(bool is_incremental);
+  void finish();
   void updateKeyFrame(KeyFrame *pKF, bool add_between_factor = false);
   void updateLandmark(MapPoint *pMP);
   void updateObservations(MapPoint *pMP, const std::map<KeyFrame *, size_t> &observations);
@@ -140,6 +148,7 @@ class GtsamTransformer {
   std::tuple<std::string, double, std::string> recent_kf_;
   std::map<std::pair<gtsam::Key, gtsam::Key>, size_t> factor_indecies_dict_;
   size_t current_index_ = 0;
+  UpdateType update_type_;
 
   std::mutex mutex_;
 

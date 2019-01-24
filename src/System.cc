@@ -30,7 +30,7 @@ namespace ORB_SLAM2
 {
 
 System::System(const string &strVocFile, const string &strSettingsFile, const eSensor sensor,
-               const bool bUseViewer):mSensor(sensor), mpViewer(static_cast<Viewer*>(NULL)), mbReset(false),mbActivateLocalizationMode(false),
+               const bool bUseViewer, const GtsamTransformer::UpdateType gtsam_type):mSensor(sensor), mpViewer(static_cast<Viewer*>(NULL)), mbReset(false),mbActivateLocalizationMode(false),
         mbDeactivateLocalizationMode(false)
 {
     // Output welcome message
@@ -48,6 +48,13 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         cout << "Stereo" << endl;
     else if(mSensor==RGBD)
         cout << "RGB-D" << endl;
+
+    cout << "GTSAM Transformer type: ";
+    if (gtsam_type==GtsamTransformer::BATCH)
+      cout << "Batch" << endl;
+    else if (gtsam_type==GtsamTransformer::INCREMENTAL)
+      cout << "Incremental" << endl;
+    gtsam_transformer_.setUpdateType(gtsam_type);
 
     //Check settings file
     cv::FileStorage fsSettings(strSettingsFile.c_str(), cv::FileStorage::READ);

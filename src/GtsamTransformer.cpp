@@ -24,7 +24,7 @@ GtsamTransformer::GtsamTransformer() {
   logger_->set_level(spdlog::level::info);
 #endif
   logger_->info("CTOR - GtsamTransformer instance created");
-  between_factors_prior_ = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e9, 1e9, 1e9, 1e9, 1e9, 1e9));
+  between_factors_prior_ = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e2, 1e2, 1e2, 1, 1, 1));
 }
 
 void GtsamTransformer::addMonoMeasurement(ORB_SLAM2::KeyFrame *pKF,
@@ -122,7 +122,7 @@ bool GtsamTransformer::start() {
   return false;
 }
 
-void GtsamTransformer::finish(bool is_incremental) {
+void GtsamTransformer::finish() {
   std::unique_lock<std::mutex> *lock;
   do {
     lock = new std::unique_lock<std::mutex>(mutex_, std::try_to_lock);
@@ -130,7 +130,7 @@ void GtsamTransformer::finish(bool is_incremental) {
   logger_->info("finish - ending recovering session. new_optimized_data is now available");
   logger_->info("finish - active states set size: {}", session_values_.size());
   logger_->info("finish - active factors vector size: {}", session_factors_.size());
-  if (is_incremental) {
+  if (update_type_ == INCREMENTAL) {
     // Incremental update
     auto incremental_factor_graph = createFactorGraph(add_factors_, true);
     ready_data_queue_.emplace(true,
@@ -141,7 +141,7 @@ void GtsamTransformer::finish(bool is_incremental) {
                               del_states_,
                               gtsam::serialize(session_values_),
                               recent_kf_);
-  } else {
+  } else if (update_type_ == BATCH) {
     // Batch update
     auto active_factor_graph = createFactorGraph(session_factors_, false);
     ready_data_queue_.emplace(true,
@@ -332,12 +332,8 @@ void GtsamTransformer::transformGraphToGtsam(const vector<ORB_SLAM2::KeyFrame *>
     updateObservations(pMP, observations);
   }
   calculateDiffrencesBetweenValueSets();
-  if (!del_states_.empty()) {
-    finish(false);
-    return;
-  }
   calculateDiffrencesBetweenFactorSets();
-  finish(true);
+  finish();
 }
 
 void GtsamTransformer::updateKeyFrame(ORB_SLAM2::KeyFrame *pKF, bool add_between_factor) {
@@ -455,5 +451,14 @@ gtsam::KeyList GtsamTransformer::getDifferenceKeyList(const gtsam::KeyList &list
     }
   }
   return diff_list;
+}
+
+void GtsamTransformer::setUpdateType(const ORB_SLAM2::GtsamTransformer::UpdateType update_type) {
+  update_type_ = update_type;
+  if (update_type_ == BATCH) {
+    logger_->info("setUpdateType - Batch");
+  } else if (update_type_ == INCREMENTAL) {
+    logger_->info("setUpdateType - Incremental");
+  }
 }
 }
