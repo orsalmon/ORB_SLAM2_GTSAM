@@ -41,14 +41,17 @@ set(EIGEN3_INCLUDE_DIR "/usr/ANPLprefix/include/gtsam/3rdparty/Eigen")
 find_package(Pangolin REQUIRED)
 find_package(Boost 	REQUIRED COMPONENTS system serialization graph)
 set(GTSAM_LIBRARIES gtsam tbb tbbmalloc)
-
+set(ANPLPREFIX /usr/ANPLprefix)
 
 include_directories(
         ${PROJECT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/include
         ${EIGEN3_INCLUDE_DIR}
         ${Pangolin_INCLUDE_DIRS}
+	${ANPLPREFIX}/include
 )
+
+link_directories(${ANPLPREFIX}/lib)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
