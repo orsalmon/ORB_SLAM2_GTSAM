@@ -1,4 +1,4 @@
-# ORB-SLAM2
+# ORB-SLAM2-GTSAM
 **Authors:** [Raul Mur-Artal](http://webdiis.unizar.es/~raulmur/), [Juan D. Tardos](http://webdiis.unizar.es/~jdtardos/), [J. M. M. Montiel](http://webdiis.unizar.es/~josemari/) and [Dorian Galvez-Lopez](http://doriangalvez.com/) ([DBoW2](https://github.com/dorian3d/DBoW2))
 
 **13 Jan 2017**: OpenCV 3 and Eigen 3.3 are now supported.
@@ -237,4 +237,29 @@ This is the default mode. The system runs in parallal three threads: Tracking, L
 
 ### Localization Mode
 This mode can be used when you have a good map of your working area. In this mode the Local Mapping and Loop Closing are deactivated. The system localizes the camera in the map (which is no longer updated), using relocalization if needed. 
+
+# 10. Using GTSAM-Transformer Object
+When you are creating an instance of the ORB_SLAM2::System class, you also get access to a member called gtsam_transformer_. Using this class member, you can call gtsam_transformer_.checkForNewData() to check for newly updated data of GTSAM factors and values.
+```
+/**
+   * Returns tuple contains:
+   * 1. Boolean indicates if there is a new data or not
+   * 2. Optional Boolean indicates if the data is incremental update
+   * 3. Optional string contains graph of the added factors since the last call to the function (serialized)
+   * 4. Optional vector contains the indices of the factors had removed since the last call to the function
+   * 5. Optional GTSAM KeyList contains the keys of the added states (keyframes/landmarks) since the last call to the function
+   * 6. Optional GTSAM KeyList contains the keys of the removed states (keyframes/landmarks) since the last call to the function
+   * 7. Optional GTSAM Values object contains the values of entire graph (serialized)
+   * 8. Optional tuple of the most recent keyframe symbol (serialized), its timestamp, and its Pose3 (serialized)
+   */
+  std::tuple<bool,
+             boost::optional<bool>,
+             boost::optional<std::string>,
+             boost::optional<std::vector<size_t>>,
+             boost::optional<const gtsam::KeyList>,
+             boost::optional<const gtsam::KeyList>,
+             boost::optional<std::string>,
+             boost::optional<std::tuple<std::string, double, std::string>>> checkForNewData();
+```
+
 
