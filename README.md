@@ -259,8 +259,8 @@ When you are creating an instance of the ORB_SLAM2::System class, you also get a
    * 2. Optional Boolean indicates if the data is incremental update
    * 3. Optional string contains graph of the added factors since the last call to the function (serialized)
    * 4. Optional vector contains the indices of the factors had removed since the last call to the function
-   * 5. Optional GTSAM KeyList contains the keys of the added states (keyframes/landmarks) since the last call to the function
-   * 6. Optional GTSAM KeyList contains the keys of the removed states (keyframes/landmarks) since the last call to the function
+   * 5. Optional GTSAM KeyVector contains the keys of the added states (keyframes/landmarks) since the last call to the function
+   * 6. Optional GTSAM KeyVector contains the keys of the removed states (keyframes/landmarks) since the last call to the function
    * 7. Optional GTSAM Values object contains the values of entire graph (serialized)
    * 8. Optional tuple of the most recent keyframe symbol (serialized), its timestamp, and its Pose3 (serialized)
    */
