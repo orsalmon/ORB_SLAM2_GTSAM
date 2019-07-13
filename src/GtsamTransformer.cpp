@@ -24,7 +24,7 @@ GtsamTransformer::GtsamTransformer() {
   logger_->set_level(spdlog::level::info);
 #endif
   logger_->info("CTOR - GtsamTransformer instance created");
-  between_factors_prior_ = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e2, 1e2, 1e2, 1, 1, 1));
+  between_factors_prior_ = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e2, 1e2, 1e2, 1, 1, 1).finished());
 }
 
 void GtsamTransformer::addMonoMeasurement(ORB_SLAM2::KeyFrame *pKF,
@@ -83,8 +83,8 @@ std::tuple<bool,
            boost::optional<bool>,
            boost::optional<std::string>,
            boost::optional<std::vector<size_t>>,
-           boost::optional<const gtsam::KeyList>,
-           boost::optional<const gtsam::KeyList>,
+           boost::optional<const gtsam::KeyVector>,
+           boost::optional<const gtsam::KeyVector>,
            boost::optional<std::string>,
            boost::optional<std::tuple<std::string, double, std::string>>> GtsamTransformer::checkForNewData() {
   if (ready_data_queue_.empty()) {
@@ -357,7 +357,7 @@ void GtsamTransformer::updateKeyFrame(ORB_SLAM2::KeyFrame *pKF, bool add_between
 
   // Adding prior factor for x0
   if (pKF->mnId == 0) {
-    auto prior_noise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6));
+    auto prior_noise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6).finished());
     gtsam::PriorFactor<gtsam::Pose3> prior_factor(gtsam::Symbol('x', 0), stereo_cam.pose(), prior_noise);
     session_factors_[std::make_pair(sym.key(), sym.key())] = std::make_pair(gtsam::serialize(prior_factor), FactorType::PRIOR);
   }
@@ -443,14 +443,14 @@ void GtsamTransformer::calculateDiffrencesBetweenFactorSets() {
   exportKeysFromMap(del_factors_map, del_factors_);
 }
 
-gtsam::KeyList GtsamTransformer::getDifferenceKeyList(const gtsam::KeyList &list_A, const gtsam::KeyList &list_B) {
-  gtsam::KeyList diff_list;
-  for (const auto &it_A: list_A) {
-    if (std::find(list_B.begin(), list_B.end(), it_A) == list_B.end()) {
-      diff_list.push_back(it_A);
+gtsam::KeyVector GtsamTransformer::getDifferenceKeyList(const gtsam::KeyVector &vec_A, const gtsam::KeyVector &vec_B) {
+  gtsam::KeyVector diff_vec;
+  for (const auto &it_A: vec_A) {
+    if (std::find(vec_B.begin(), vec_B.end(), it_A) == vec_B.end()) {
+      diff_vec.push_back(it_A);
     }
   }
-  return diff_list;
+  return diff_vec;
 }
 
 void GtsamTransformer::setUpdateType(const ORB_SLAM2::GtsamTransformer::UpdateType update_type) {

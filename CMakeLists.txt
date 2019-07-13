@@ -36,22 +36,20 @@ if(NOT OpenCV_FOUND)
    endif()
 endif()
 
-#find_package(Eigen3 3.1.0 REQUIRED)
-set(EIGEN3_INCLUDE_DIR "/usr/ANPLprefix/include/gtsam/3rdparty/Eigen")
+find_package(Eigen3 3.1.0 REQUIRED)
 find_package(Pangolin REQUIRED)
 find_package(Boost 	REQUIRED COMPONENTS system serialization graph)
+find_package(GTSAMCMakeTools)
 set(GTSAM_LIBRARIES gtsam tbb tbbmalloc)
-set(ANPLPREFIX /usr/ANPLprefix)
 
 include_directories(
         ${PROJECT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/include
         ${EIGEN3_INCLUDE_DIR}
         ${Pangolin_INCLUDE_DIRS}
-	${ANPLPREFIX}/include
 )
 
-link_directories(${ANPLPREFIX}/lib)
+include(GtsamBuildTypes)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 

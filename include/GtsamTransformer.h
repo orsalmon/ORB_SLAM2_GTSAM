@@ -50,6 +50,7 @@
 
 // logger
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/rotating_file_sink.h>
 
 namespace ORB_SLAM2 {
 class KeyFrame;
@@ -80,8 +81,8 @@ class GtsamTransformer {
    * 2. Optional Boolean indicates if the data is incremental update
    * 3. Optional string contains graph of the added factors since the last call to the function (serialized)
    * 4. Optional vector contains the indices of the factors had removed since the last call to the function
-   * 5. Optional GTSAM KeyList contains the keys of the added states (keyframes/landmarks) since the last call to the function
-   * 6. Optional GTSAM KeyList contains the keys of the removed states (keyframes/landmarks) since the last call to the function
+   * 5. Optional GTSAM KeyVector contains the keys of the added states (keyframes/landmarks) since the last call to the function
+   * 6. Optional GTSAM KeyVector contains the keys of the removed states (keyframes/landmarks) since the last call to the function
    * 7. Optional GTSAM Values object contains the values of entire graph (serialized)
    * 8. Optional tuple of the most recent keyframe symbol (serialized), its timestamp, and its Pose3 (serialized)
    */
@@ -89,8 +90,8 @@ class GtsamTransformer {
              boost::optional<bool>,
              boost::optional<std::string>,
              boost::optional<std::vector<size_t>>,
-             boost::optional<const gtsam::KeyList>,
-             boost::optional<const gtsam::KeyList>,
+             boost::optional<const gtsam::KeyVector>,
+             boost::optional<const gtsam::KeyVector>,
              boost::optional<std::string>,
              boost::optional<std::tuple<std::string, double, std::string>>> checkForNewData();
 
@@ -125,14 +126,14 @@ class GtsamTransformer {
                                                                                                    std::map<std::pair<gtsam::Key, gtsam::Key>,
                                                                                                             std::pair<std::string,
                                                                                                                       FactorType>> &set_B);
-  gtsam::KeyList getDifferenceKeyList(const gtsam::KeyList &list_A, const gtsam::KeyList &list_B);
+  gtsam::KeyVector getDifferenceKeyList(const gtsam::KeyVector &vec_A, const gtsam::KeyVector &vec_B);
 
   std::queue<std::tuple<bool,
                         bool,
                         std::string,
                         std::vector<size_t>,
-                        const gtsam::KeyList,
-                        const gtsam::KeyList,
+                        const gtsam::KeyVector,
+                        const gtsam::KeyVector,
                         std::string,
                         std::tuple<std::string, double, std::string>>> ready_data_queue_;
 
@@ -144,7 +145,7 @@ class GtsamTransformer {
   std::vector<std::pair<std::string, FactorType>> add_factors_;
   std::vector<std::pair<gtsam::Key, gtsam::Key>> del_factors_;
   std::map<std::pair<gtsam::Key, gtsam::Key>, std::pair<std::string, FactorType>> session_factors_, last_session_factors_;
-  gtsam::KeyList del_states_, add_states_;
+  gtsam::KeyVector del_states_, add_states_;
   std::tuple<std::string, double, std::string> recent_kf_;
   std::map<std::pair<gtsam::Key, gtsam::Key>, size_t> factor_indecies_dict_;
   size_t current_index_ = 0;
