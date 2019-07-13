@@ -268,8 +268,8 @@ When you are creating an instance of the ORB_SLAM2::System class, you also get a
              boost::optional<bool>,
              boost::optional<std::string>,
              boost::optional<std::vector<size_t>>,
-             boost::optional<const gtsam::KeyList>,
-             boost::optional<const gtsam::KeyList>,
+             boost::optional<const gtsam::KeyVector>,
+             boost::optional<const gtsam::KeyVector>,
              boost::optional<std::string>,
              boost::optional<std::tuple<std::string, double, std::string>>> checkForNewData();
 ```
