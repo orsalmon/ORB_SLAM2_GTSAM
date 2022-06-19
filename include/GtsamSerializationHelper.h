@@ -97,6 +97,22 @@ BOOST_CLASS_EXPORT_GUID(gtsam::SharedDiagonal, "gtsamSharedDiagonal");
 
 /* Create GUIDs for geometry */
 /* ************************************************************************* */
+GTSAM_VALUE_EXPORT(gtsam::LieVector);
+GTSAM_VALUE_EXPORT(gtsam::LieMatrix);
+GTSAM_VALUE_EXPORT(gtsam::Point2);
+GTSAM_VALUE_EXPORT(gtsam::StereoPoint2);
+GTSAM_VALUE_EXPORT(gtsam::Point3);
+GTSAM_VALUE_EXPORT(gtsam::Rot2);
+GTSAM_VALUE_EXPORT(gtsam::Rot3);
+GTSAM_VALUE_EXPORT(gtsam::Pose2);
+GTSAM_VALUE_EXPORT(gtsam::Pose3);
+GTSAM_VALUE_EXPORT(gtsam::Cal3_S2);
+GTSAM_VALUE_EXPORT(gtsam::Cal3DS2);
+GTSAM_VALUE_EXPORT(gtsam::Cal3_S2Stereo);
+GTSAM_VALUE_EXPORT(gtsam::CalibratedCamera);
+GTSAM_VALUE_EXPORT(gtsam::SimpleCamera);
+GTSAM_VALUE_EXPORT(gtsam::StereoCamera);
+
 BOOST_CLASS_EXPORT_GUID(gtsam::Point2, "gtsamPoint2");
 BOOST_CLASS_EXPORT_GUID(gtsam::Point3, "gtsamPoint3");
 BOOST_CLASS_EXPORT_GUID(gtsam::Rot2, "gtsamRot2");
